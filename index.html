@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Student Image Uploader</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    video, canvas, img { max-width: 100%; border: 1px solid #ccc; margin: 10px 0; }
+    #camera-container { display: flex; gap: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Upload Student Image</h2>
+  <label>Class & Section:
+    <select id="classSection" onchange="loadRollNumbers()"></select>
+  </label><br><br>
+
+  <label>Roll No:
+    <select id="rollNo" onchange="loadStudentInfo()"></select>
+  </label><br><br>
+
+  <div id="studentInfo"></div>
+
+  <div id="camera-container">
+    <video id="video" autoplay></video>
+    <canvas id="canvas" style="display: none;"></canvas>
+  </div>
+
+  <button onclick="swapCamera()">Swap Camera</button>
+  <button onclick="capturePhoto()">Capture Photo</button>
+  <button onclick="savePhoto()">Save Image</button>
+
+  <script>
+    const GAS_URL = "YOUR_GAS_DEPLOYMENT_URL";
+    let usingFrontCamera = true;
+    let currentStream;
+    let capturedImageData;
+
+    async function loadSheetNames() {
+      const res = await fetch(GAS_URL);
+      const sheets = await res.json();
+      const dropdown = document.getElementById("classSection");
+      dropdown.innerHTML = "<option value=''>Select</option>" +
+        sheets.map(s => `<option value="${s}">${s}</option>`).join("");
+    }
+
+    async function loadRollNumbers() {
+      const sheetName = document.getElementById("classSection").value;
+      const res = await google.script.run.withSuccessHandler(rollNos => {
+        const rollDropdown = document.getElementById("rollNo");
+        rollDropdown.innerHTML = "<option value=''>Select</option>" +
+          rollNos.map(r => `<option value="${r}">${r}</option>`).join("");
+      }).getRollNos(sheetName);
+    }
+
+    async function loadStudentInfo() {
+      const sheet = document.getElementById("classSection").value;
+      const roll = document.getElementById("rollNo").value;
+
+      google.script.run.withSuccessHandler(info => {
+        if (info) {
+          document.getElementById("studentInfo").innerHTML =
+            `Student Code: <b>${info.studentCode}</b><br>
+             Name: <b>${info.studentName}</b><br>
+             Contact: <b>${info.contact}</b>`;
+        }
+      }).getStudentInfo(sheet, roll);
+    }
+
+    async function startCamera() {
+      if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+
+      const constraints = {
+        video: { facingMode: usingFrontCamera ? "user" : "environment" }
+      };
+      currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+      document.getElementById("video").srcObject = currentStream;
+    }
+
+    function swapCamera() {
+      usingFrontCamera = !usingFrontCamera;
+      startCamera();
+    }
+
+    function capturePhoto() {
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const width = 500;
+      const height = width * 6.5 / 5; // Maintain 5:6.5 aspect ratio
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(video, 0, 0, width, height);
+
+      capturedImageData = canvas.toDataURL("image/jpeg");
+      canvas.style.display = "block";
+    }
+
+    async function savePhoto() {
+      const sheet = document.getElementById("classSection").value;
+      const roll = document.getElementById("rollNo").value;
+
+      if (!capturedImageData) return alert("Please capture a photo first.");
+
+      const res = await fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({ sheetName: sheet, rollNo: roll, imageBase64: capturedImageData }),
+        headers: { "Content-Type": "application/json" }
+      });
+      const result = await res.text();
+      alert(result === "SUCCESS" ? "Image saved!" : "Error: " + result);
+    }
+
+    window.onload = startCamera;
+    window.addEventListener("DOMContentLoaded", loadSheetNames);
+  </script>
+</body>
+</html>
