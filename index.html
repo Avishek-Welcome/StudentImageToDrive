@@ -67,7 +67,7 @@
 
         // 🚨 ENSURE THIS URL IS 100% CORRECT AND FROM YOUR *LATEST DEPLOYMENT* 🚨
         // 🚨 SET "Who has access" TO "Anyone" IN DEPLOYMENT FOR TESTING 🚨
-        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbw-CkE71SwLzW8kQAB2Dh_DR5F25zcFH5aUMeWYw-kbIKZ1_cCg8M_z_X303aonTbIY/exec'; // <<<<<< REPLACE THIS!!!
+        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbwW42n2jc8mv7yRBx7E2uVc_235V92phlG6Ya9YZbJfl3hpQuQuhNS8aM8Z64PrK-cD/exec'; // <<<<<< REPLACE THIS!!!
 
         const API_ENDPOINTS = {
             getSheetNames: `${APPS_SCRIPT_BASE_URL}?action=getSheetNames`,
@@ -115,7 +115,7 @@
         async function testServerConnection() {
             showUserMessage(connectionTestMessageDiv, 'Testing server connection...', 'info', 0);
             console.log(`[TEST_CONNECTION] Attempting to fetch: ${API_ENDPOINTS.testConnection}`);
-            if (APPS_SCRIPT_BASE_URL === 'https://script.google.com/macros/s/AKfycbw-CkE71SwLzW8kQAB2Dh_DR5F25zcFH5aUMeWYw-kbIKZ1_cCg8M_z_X303aonTbIY/exec') {
+            if (APPS_SCRIPT_BASE_URL === 'https://script.google.com/macros/s/AKfycbwW42n2jc8mv7yRBx7E2uVc_235V92phlG6Ya9YZbJfl3hpQuQuhNS8aM8Z64PrK-cD/exec') {
                  showUserMessage(connectionTestMessageDiv, 'ERROR: APPS_SCRIPT_BASE_URL is not set. Please update it in the script.', 'error', 0);
                  console.error("[TEST_CONNECTION] APPS_SCRIPT_BASE_URL is placeholder.");
                  return false;
