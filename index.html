@@ -4,8 +4,8 @@
   <title>Student Image Uploader</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
       background-color: #fff8e1;
+      font-family: Arial, sans-serif;
       color: #b71c1c;
       padding: 20px;
     }
@@ -14,6 +14,9 @@
       color: #d32f2f;
     }
     select, button {
+      display: block;
+      width: 100%;
+      max-width: 300px;
       margin: 10px 0;
       padding: 8px;
       font-size: 16px;
@@ -32,48 +35,49 @@
       width: 100%;
       max-width: 300px;
       border: 3px solid #d32f2f;
-      border-radius: 8px;
-      margin: 10px 0;
+      border-radius: 10px;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
-  <h2 style="color:#b71c1c;">📸 Student Image Uploader</h2>
+  <h2>📸 Student Image Uploader</h2>
 
   <label>Class & Section:</label>
-  <select id="classSection" onchange="loadRollNumbers()"></select><br>
+  <select id="classSection" onchange="loadRollNos()"></select>
 
   <label>Roll No:</label>
-  <select id="rollNo" onchange="loadStudentInfo()"></select><br>
+  <select id="rollNo" onchange="loadStudentInfo()"></select>
 
   <div id="studentInfo"></div>
 
   <video id="video" autoplay muted playsinline></video>
-  <canvas id="canvas" style="display: none;"></canvas><br>
+  <canvas id="canvas" style="display:none;"></canvas>
 
   <button onclick="swapCamera()">🔄 Swap Camera</button>
   <button onclick="capturePhoto()">📸 Capture</button>
   <button onclick="savePhoto()">💾 Save</button>
 
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwO7aXig0OdzrYJ5CFay6VNTLYDPaAdYt9DsoGKRKqnl3ZpFzzSVt5h1QxTonnKbBwU/exec"; // Replace this
-    let usingFrontCamera = true;
     let currentStream;
-    let capturedImageData;
+    let usingFrontCamera = true;
+    let capturedImage;
 
-    async function fetchSheets() {
-      const res = await fetch(GAS_URL);
-      const sheets = await res.json();
-      const sectionDropdown = document.getElementById("classSection");
-      sectionDropdown.innerHTML = `<option value="">Select</option>` + sheets.map(name => `<option value="${name}">${name}</option>`).join("");
+    function init() {
+      google.script.run.withSuccessHandler(populateClasses).getSheetNames();
+      startCamera();
     }
 
-    async function loadRollNumbers() {
+    function populateClasses(sheets) {
+      const dropdown = document.getElementById("classSection");
+      dropdown.innerHTML = '<option value="">Select</option>' + sheets.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
+    function loadRollNos() {
       const sheet = document.getElementById("classSection").value;
-      const url = `${GAS_URL}?action=rolls&sheetName=${encodeURIComponent(sheet)}`;
       google.script.run.withSuccessHandler(rolls => {
-        const rollDropdown = document.getElementById("rollNo");
-        rollDropdown.innerHTML = `<option value="">Select</option>` + rolls.map(r => `<option>${r}</option>`).join("");
+        const rollSelect = document.getElementById("rollNo");
+        rollSelect.innerHTML = '<option value="">Select</option>' + rolls.map(r => `<option value="${r}">${r}</option>`).join('');
       }).getRollNos(sheet);
     }
 
@@ -86,6 +90,8 @@
             <p><b>Student ID:</b> ${info.studentCode}</p>
             <p><b>Name:</b> ${info.studentName}</p>
             <p><b>Contact:</b> ${info.contact}</p>`;
+        } else {
+          document.getElementById("studentInfo").innerHTML = "<p style='color:red;'>Student not found.</p>";
         }
       }).getStudentInfo(sheet, roll);
     }
@@ -96,6 +102,7 @@
       const constraints = {
         video: { facingMode: usingFrontCamera ? "user" : "environment" }
       };
+
       currentStream = await navigator.mediaDevices.getUserMedia(constraints);
       document.getElementById("video").srcObject = currentStream;
     }
@@ -111,38 +118,34 @@
       const ctx = canvas.getContext("2d");
 
       const width = 500;
-      const height = Math.round(width * 6.6 / 5); // 5:6.6 aspect ratio
+      const height = Math.round(width * 6.6 / 5);
       canvas.width = width;
       canvas.height = height;
 
       ctx.drawImage(video, 0, 0, width, height);
-      capturedImageData = canvas.toDataURL("image/jpeg");
+      capturedImage = canvas.toDataURL("image/jpeg");
       canvas.style.display = "block";
     }
 
-    async function savePhoto() {
+    function savePhoto() {
       const sheet = document.getElementById("classSection").value;
       const roll = document.getElementById("rollNo").value;
 
-      if (!capturedImageData || !sheet || !roll) {
-        alert("Please fill in all fields and capture a photo first.");
+      if (!capturedImage || !sheet || !roll) {
+        alert("Please select class, roll number, and capture image.");
         return;
       }
 
-      const response = await fetch(GAS_URL, {
-        method: "POST",
-        body: JSON.stringify({ sheetName: sheet, rollNo: roll, imageBase64: capturedImageData }),
-        headers: { "Content-Type": "application/json" }
-      });
-
-      const result = await response.text();
-      alert(result === "SUCCESS" ? "✅ Image saved!" : "❌ Error: " + result);
+      google.script.run.withSuccessHandler(response => {
+        if (response === "SUCCESS") {
+          alert("✅ Image saved successfully!");
+        } else {
+          alert("❌ Error: " + response);
+        }
+      }).saveImage(sheet, roll, capturedImage);
     }
 
-    window.onload = () => {
-      startCamera();
-      fetchSheets();
-    };
+    window.onload = init;
   </script>
 </body>
 </html>
