@@ -7,10 +7,10 @@ const GOOGLE_DRIVE_FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
 const APPS_SCRIPT_BASE_URL = 'YOUR_APPS_SCRIPT_WEB_APP_URL'; // E.g., 'https://script.google.com/macros/s/AKfycb.../exec'
 
 const API_ENDPOINTS = {
-    getSheetNames: `${https://script.google.com/macros/s/AKfycbwfLlMYmiaKmKq-itSoy6aBER7a8jiO3VOuS0T0_3rgq5d4sOdVs6ynYkagxc2JD8Am/exec}?action=getSheetNames`,
-    getSheetData: `${https://script.google.com/macros/s/AKfycbwfLlMYmiaKmKq-itSoy6aBER7a8jiO3VOuS0T0_3rgq5d4sOdVs6ynYkagxc2JD8Am/exec}?action=getSheetData`,
-    saveImageLink: `${https://script.google.com/macros/s/AKfycbwfLlMYmiaKmKq-itSoy6aBER7a8jiO3VOuS0T0_3rgq5d4sOdVs6ynYkagxc2JD8Am/exec}?action=saveImageLink`, // To save link to sheet
-    uploadImageToDrive: `${https://script.google.com/macros/s/AKfycbwfLlMYmiaKmKq-itSoy6aBER7a8jiO3VOuS0T0_3rgq5d4sOdVs6ynYkagxc2JD8Am/exec}?action=uploadImageToDrive` // To upload image to Drive
+    getSheetNames: `https://script.google.com/macros/s/AKfycbwfLlMYmiaKmKq-itSoy6aBER7a8jiO3VOuS0T0_3rgq5d4sOdVs6ynYkagxc2JD8Am/exec?action=getSheetNames`,
+    getSheetData: `https://script.google.com/macros/s/AKfycbwfLlMYmiaKmKq-itSoy6aBER7a8jiO3VOuS0T0_3rgq5d4sOdVs6ynYkagxc2JD8Am/exec?action=getSheetData`,
+    saveImageLink: `https://script.google.com/macros/s/AKfycbwfLlMYmiaKmKq-itSoy6aBER7a8jiO3VOuS0T0_3rgq5d4sOdVs6ynYkagxc2JD8Am/exec?action=saveImageLink`, // To save link to sheet
+    uploadImageToDrive: `https://script.google.com/macros/s/AKfycbwfLlMYmiaKmKq-itSoy6aBER7a8jiO3VOuS0T0_3rgq5d4sOdVs6ynYkagxc2JD8Am/exec?action=uploadImageToDrive` // To upload image to Drive
 };
 
 // --- DOM Elements ---
