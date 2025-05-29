@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Data and Image Capture</title>
     <style>
-        /* Basic CSS for layout and styling */
+        /* Basic CSS for layout and styling (no changes here) */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
@@ -215,7 +215,7 @@
         const SPREADSHEET_ID = '1E42C6IIupDSFCFexL0ouQteFtwiFoM1QyLwSo2rZRH0';
         const GOOGLE_DRIVE_FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
 
-        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbwEKzh88g9wcE09gZJQ3BfRpxEetXTIAJiSj_fxgONjjzyKZWUN42wfQIt2CWdcDFcN/exec'; // E.g., 'https://script.google.com/macros/s/AKfycb.../exec'
+        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbzirfCBZ92aHTKbKwZb8BmpDi2tFYEY7xfsxPoKzbmPuJ6A0hlxcfz3NsNzqoTPfZFC/exec'; // E.g., 'https://script.google.com/macros/s/AKfycb.../exec'
 
         const API_ENDPOINTS = {
             getSheetNames: `${APPS_SCRIPT_BASE_URL}?action=getSheetNames`,
@@ -264,6 +264,7 @@
                     } else if (btn.id === 'capturePictureButton') {
                         btn.disabled = !currentStream;
                     } else if (btn.id === 'savePictureButton') {
+                        // Keep save button disabled until picture is captured AND student ID is loaded
                         btn.disabled = !(capturedImageDisplay.src && capturedImageDisplay.style.display !== 'none' && studentIdSpan.textContent !== 'N/A');
                     } else {
                         btn.disabled = false;
@@ -366,16 +367,18 @@
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
 
-                // Find the student by Roll No (Column A)
+                // Find the student by Roll No (Column A, index 0)
                 // Assuming first row is header, so search from index 1
                 const student = data.slice(1).find(row => row[0] === rollNo);
 
                 if (student) {
-                    studentIdSpan.textContent = student[0] || 'N/A';   // Column A (Roll No assumed as Student ID)
+                    // Update: Student ID from Column 'I' (index 8, since A=0, B=1, ..., I=8)
+                    studentIdSpan.textContent = student[8] || 'N/A'; 
                     studentNameSpan.textContent = student[1] || 'N/A'; // Column B (Student Name)
                     contactNumberSpan.textContent = student[5] || 'N/A'; // Column F (Student Contact Number)
-                    // Enable save button only if student details are loaded
-                    savePictureButton.disabled = !(capturedImageDisplay.src && capturedImageDisplay.style.display !== 'none');
+                    
+                    // Enable save button only if student details are loaded AND an image is captured
+                    savePictureButton.disabled = !(capturedImageDisplay.src && capturedImageDisplay.style.display !== 'none' && studentIdSpan.textContent !== 'N/A');
                 } else {
                     showMessage('Student details not found for this Roll No.', 'info');
                 }
@@ -480,7 +483,8 @@
             capturedImageDisplay.src = canvas.toDataURL('image/jpeg', 0.9);
             capturedImageDisplay.style.display = 'block'; // Show captured image
             cameraFeed.style.display = 'none'; // Hide camera feed
-            savePictureButton.disabled = !(studentIdSpan.textContent !== 'N/A'); // Enable save if student selected
+            // Enable save if student ID is loaded AND an image is captured
+            savePictureButton.disabled = !(studentIdSpan.textContent !== 'N/A');
             showMessage('Picture captured successfully!', 'success');
         }
 
@@ -488,12 +492,14 @@
          * Saves the captured picture to Google Drive and its link to the Google Sheet.
          */
         async function savePicture() {
-            const studentCode = studentIdSpan.textContent;
+            // Use studentIdSpan.textContent for the file name, as it's now updated from Column I
+            const studentCode = studentIdSpan.textContent; 
             const sheetName = classSectionDropdown.value;
-            const rollNo = rollNoDropdown.value;
+            const rollNo = rollNoDropdown.value; // Roll No (Column A) is still used to find the row in the sheet
 
-            if (studentCode === 'N/A' || !rollNo || !sheetName) {
-                showMessage('Please select Class, Section, and Roll No, and ensure student details are displayed.', 'error');
+            // IMPORTANT: Check that studentCode is actually a valid ID, not 'N/A' or empty
+            if (studentCode === 'N/A' || !studentCode || !rollNo || !sheetName) {
+                showMessage('Please ensure Class, Section, Roll No are selected and Student ID is displayed, then capture a picture.', 'error');
                 return;
             }
 
@@ -513,7 +519,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        fileName: `${studentCode}.jpg`, // Image filename is Student Code
+                        fileName: `${studentCode}.jpg`, // Image filename is now Student ID
                         imageData: base64Data,
                         folderId: GOOGLE_DRIVE_FOLDER_ID
                     })
@@ -531,7 +537,7 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             sheetName: sheetName,
-                            rollNo: rollNo, // Use Roll No to identify the correct row
+                            rollNo: rollNo, // Use Roll No (Column A) to find the correct row
                             imageLink: imageUrl
                         })
                     });
