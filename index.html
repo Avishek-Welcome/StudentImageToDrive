@@ -67,7 +67,7 @@
 
         // 🚨 ENSURE THIS URL IS 100% CORRECT AND FROM YOUR *LATEST DEPLOYMENT* 🚨
         // 🚨 SET "Who has access" TO "Anyone" IN DEPLOYMENT FOR TESTING 🚨
-        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbwW42n2jc8mv7yRBx7E2uVc_235V92phlG6Ya9YZbJfl3hpQuQuhNS8aM8Z64PrK-cD/exec'; // <<<<<< REPLACE THIS!!!
+        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbxvM20tRsX7ncJWkdBKPFgw4O3C6dPDzze_aLWA03ZTmpg2RX5t1ceHJPcLwkW2aI12/exec'; // <<<<<< REPLACE THIS!!!
 
         const API_ENDPOINTS = {
             getSheetNames: `${APPS_SCRIPT_BASE_URL}?action=getSheetNames`,
@@ -115,10 +115,12 @@
         async function testServerConnection() {
             showUserMessage(connectionTestMessageDiv, 'Testing server connection...', 'info', 0);
             console.log(`[TEST_CONNECTION] Attempting to fetch: ${API_ENDPOINTS.testConnection}`);
-            if (APPS_SCRIPT_BASE_URL === 'https://script.google.com/macros/s/AKfycbwW42n2jc8mv7yRBx7E2uVc_235V92phlG6Ya9YZbJfl3hpQuQuhNS8aM8Z64PrK-cD/exec') {
-                 showUserMessage(connectionTestMessageDiv, 'ERROR: APPS_SCRIPT_BASE_URL is not set. Please update it in the script.', 'error', 0);
-                 console.error("[TEST_CONNECTION] APPS_SCRIPT_BASE_URL is placeholder.");
-                 return false;
+            if (APPS_SCRIPT_BASE_URL === 'https://script.google.com/macros/s/AKfycbxvM20tRsX7ncJWkdBKPFgw4O3C6dPDzze_aLWA03ZTmpg2RX5t1ceHJPcLwkW2aI12/exec') {
+                // URL is now correctly set
+            } else {
+                showUserMessage(connectionTestMessageDiv, 'ERROR: APPS_SCRIPT_BASE_URL was not correctly updated.', 'error', 0);
+                console.error("[TEST_CONNECTION] APPS_SCRIPT_BASE_URL was not correctly updated.");
+                return false;
             }
             try {
                 const response = await fetch(API_ENDPOINTS.testConnection);
@@ -136,7 +138,7 @@
                     return false;
                 }
                 console.log('[TEST_CONNECTION] Success:', data);
-                showUserMessage(connectionTestMessageDiv, `Server OK: ${data.message} (${data.timestamp})`, 'success', 10000);
+                showUserMessage(connectionTestMessageDiv, `Server OK: <span class="math-inline">\{data\.message\} \(</span>{data.timestamp})`, 'success', 10000);
                 return true;
             } catch (err) { // This is where "Failed to fetch" is caught
                 console.error(`[TEST_CONNECTION] FAILED TO FETCH. URL: ${API_ENDPOINTS.testConnection}. Error object:`, err);
@@ -156,7 +158,7 @@
                     try {
                         const errorData = await response.json(); // Try to parse JSON error from Apps Script
                         errorDetails = `HTTP ${response.status}: ${errorData.error || JSON.stringify(errorData)}`;
-                    } catch (e) { 
+                    } catch (e) {
                         // If not JSON, try to get text (might be HTML error page from Google)
                         try { errorDetails = `HTTP ${response.status}: ${(await response.text()).substring(0, 200)}...`; }
                         catch (e2) { /* Failsafe */ }
@@ -178,7 +180,7 @@
                 showLoading(false);
             }
         }
-        
+
         async function fetchSheetNames() {
             try {
                 const sheetNamesData = await makeApiCall(API_ENDPOINTS.getSheetNames, {}, "Load Classes");
@@ -196,7 +198,7 @@
             savePictureButton.disabled = true; capturePictureButton.disabled = true;
             if (!sheetName) return;
             try {
-                const data = await makeApiCall(`${API_ENDPOINTS.getSheetData}&sheetName=${encodeURIComponent(sheetName)}`, {}, "Load Roll Numbers");
+                const data = await makeApiCall(`<span class="math-inline">\{API\_ENDPOINTS\.getSheetData\}&sheetName\=</span>{encodeURIComponent(sheetName)}`, {}, "Load Roll Numbers");
                 if (data && data.length > 1) {
                     const rollNos = data.slice(1).map(row => row[0]).filter(Boolean);
                     if (rollNos.length > 0) {
@@ -212,76 +214,10 @@
             savePictureButton.disabled = true; const sheetName = classSectionDropdown.value;
             if (!sheetName || !rollNo) return;
             try {
-                const data = await makeApiCall(`${API_ENDPOINTS.getSheetData}&sheetName=${encodeURIComponent(sheetName)}`, {}, "Get Student Details");
+                const data = await makeApiCall(`<span class="math-inline">\{API\_ENDPOINTS\.getSheetData\}&sheetName\=</span>{encodeURIComponent(sheetName)}`, {}, "Get Student Details");
                 const student = data.slice(1).find(row => String(row[0]).trim() === String(rollNo).trim());
                 if (student) {
                     studentIdSpan.textContent = student[8] || 'N/A'; // Col I
                     studentNameSpan.textContent = student[1] || 'N/A'; // Col B
                     contactNumberSpan.textContent = student[5] || 'N/A'; // Col F
-                    savePictureButton.disabled = !(capturedImageDisplay.src && capturedImageDisplay.style.display !== 'none' && studentIdSpan.textContent !== 'N/A' && studentIdSpan.textContent);
-                } else showUserMessage(statusMessageDiv, 'Student details not found.', 'info');
-            } catch (error) { /* Error already shown */ }
-        }
-
-        async function startCamera(mode) { /* ... Same as previous correct version ... */ 
-            if(currentStream)currentStream.getTracks().forEach(t=>t.stop());
-            [swapCameraButton,capturePictureButton].forEach(b=>b.disabled=true);
-            try{
-                currentStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode,width:{ideal:1280},height:{ideal:720}}});
-                cameraFeed.srcObject=currentStream; await cameraFeed.play();
-                capturedImageDisplay.style.display='none'; cameraFeed.style.display='block';
-                capturePictureButton.disabled=!rollNoDropdown.value; swapCameraButton.disabled=false;
-            }catch(e){console.error("Camera Error:",e);showUserMessage(statusMessageDiv,'Camera access error. Check permissions.','error');}
-        }
-        function swapCamera() { facingMode = facingMode === 'user' ? 'environment' : 'user'; startCamera(facingMode); }
-        function capturePicture() { /* ... Same as previous correct version ... */
-            if(!currentStream||!rollNoDropdown.value||studentIdSpan.textContent==='N/A'||!studentIdSpan.textContent){showUserMessage(statusMessageDiv,'Select Class, Roll No, and ensure camera is active.','error');return}
-            const vW=cameraFeed.videoWidth,vH=cameraFeed.videoHeight;if(vW===0||vH===0){showUserMessage(statusMessageDiv,'Cam feed not ready.','error');return}
-            const dAR=5/6.5;let tW=vW,tH=vW/dAR;if(vH*dAR<vW){tH=vH;tW=vH*dAR}
-            canvas.width=tW;canvas.height=tH;const ctx=canvas.getContext('2d');ctx.drawImage(cameraFeed,(vW-tW)/2,(vH-tH)/2,tW,tH,0,0,tW,tH);
-            capturedImageDisplay.src=canvas.toDataURL('image/jpeg',0.9);
-            capturedImageDisplay.style.display='block';cameraFeed.style.display='none';
-            savePictureButton.disabled=!(studentIdSpan.textContent!=='N/A'&&studentIdSpan.textContent);showUserMessage(statusMessageDiv,'Picture captured!','success');
-        }
-
-        async function savePicture() {
-            const studentCodeForFile = studentIdSpan.textContent;
-            const sheetName = classSectionDropdown.value;
-            const rollNoForRow = rollNoDropdown.value;
-
-            if (studentCodeForFile === 'N/A' || !studentCodeForFile || !rollNoForRow || !sheetName || !capturedImageDisplay.src || capturedImageDisplay.style.display === 'none') {
-                showUserMessage(statusMessageDiv, 'Missing info or no picture. Check all fields & capture image.', 'error'); return;
-            }
-            const base64Data = capturedImageDisplay.src.split(',')[1];
-            
-            try {
-                const uploadPayload = { fileName: `${studentCodeForFile}.jpg`, imageData: base64Data, folderId: GOOGLE_DRIVE_FOLDER_ID };
-                const uploadResult = await makeApiCall(API_ENDPOINTS.uploadImageToDrive, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(uploadPayload) }, "Upload Image");
-                 // Apps Script with ContentService.MimeType.JSON for request body actually prefers text/plain from fetch, then JSON.parse(e.postData.contents)
-
-                showUserMessage(statusMessageDiv, 'Image uploaded. Saving link...', 'info');
-                const saveLinkPayload = { sheetName: sheetName, rollNo: rollNoForRow, imageLink: uploadResult.fileLink };
-                await makeApiCall(API_ENDPOINTS.saveImageLink, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(saveLinkPayload) }, "Save Link to Sheet");
-                
-                showUserMessage(statusMessageDiv, 'Picture saved and link updated!', 'success');
-            } catch (error) { /* Error already shown by makeApiCall */ }
-        }
-
-        classSectionDropdown.addEventListener('change', (e) => { fetchSheetData(e.target.value); /* reset details */ studentIdSpan.textContent='N/A';savePictureButton.disabled=true;capturePictureButton.disabled=true;if(capturedImageDisplay.style.display!=='none'){cameraFeed.style.display='block';capturedImageDisplay.style.display='none';}});
-        rollNoDropdown.addEventListener('change', (e) => { displayStudentDetails(e.target.value); capturePictureButton.disabled=!currentStream; if(capturedImageDisplay.style.display!=='none'){cameraFeed.style.display='block';capturedImageDisplay.style.display='none';savePictureButton.disabled=true;}});
-        swapCameraButton.addEventListener('click', swapCamera);
-        capturePictureButton.addEventListener('click', capturePicture);
-        savePictureButton.addEventListener('click', savePicture);
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            const connected = await testServerConnection();
-            if (connected) {
-                fetchSheetNames();
-                startCamera(facingMode);
-            } else {
-                showUserMessage(statusMessageDiv, "Cannot proceed: Server connection test failed. Please resolve issues mentioned above.", "error", 0);
-            }
-        });
-    </script>
-</body>
-</html>
+                    savePictureButton.disabled = !(capturedImageDisplay.src && capturedImageDisplay.style.display !== 'none' && studentIdSpan.textContent !== 'N/A' && studentIdSpan.textContent
