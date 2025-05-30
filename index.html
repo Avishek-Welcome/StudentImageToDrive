@@ -1,206 +1,58 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Student Photo Uploader</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Capture and Upload Image</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: auto;
-      background: #fff8dc;
-      color: #b30000;
-      padding: 20px;
+    video, canvas {
+      max-width: 100%;
+      border: 2px solid #ccc;
+      margin: 10px 0;
     }
-    h2 {
-      color: #b30000;
-    }
-    select, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      border: 2px solid #b30000;
-      border-radius: 5px;
-      font-size: 16px;
-      background: #fff3cd;
-      color: #b30000;
-      font-weight: bold;
-    }
-    video, img {
-      width: 100%;
-      margin-top: 10px;
-      border-radius: 8px;
-      border: 2px solid #b30000;
-      object-fit: cover;
-      aspect-ratio: 5 / 6.5;
-      background: black;
-    }
-    .info {
-      background-color: #fff3cd;
-      padding: 10px;
-      border-left: 5px solid #ffcc00;
-      margin-top: 10px;
-      color: #b30000;
-      font-weight: bold;
+    button {
+      padding: 10px 20px;
+      margin: 10px;
     }
   </style>
 </head>
 <body>
-  <h2>Student Photo Uploader</h2>
-  <select id="classSelect">
-    <option value="">Select Class & Section</option>
-  </select>
-
-  <select id="rollSelect" disabled>
-    <option value="">Select Roll No</option>
-  </select>
-
-  <div class="info" id="studentInfo"></div>
-
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" style="display:none;"></canvas>
-  <img id="capturedImage" style="display:none;" />
-
-  <button id="swapBtn">Swap Camera</button>
-  <button id="captureBtn">Capture Picture</button>
-  <button id="saveBtn">Save Image</button>
+  <h2>Capture Image and Upload to Google Drive</h2>
+  <video id="video" autoplay playsinline width="320" height="240"></video><br>
+  <button id="capture">Capture</button>
+  <canvas id="canvas" width="320" height="240" style="display:none;"></canvas><br>
+  <button id="upload" disabled>Upload to Drive</button>
+  <p id="status"></p>
 
   <script>
-    const apiUrl = 'https://script.google.com/macros/s/AKfycbxrclcQpyqboq05RCTXCiH1oJ6_4D9bQRdKFtFpPB7gTfX8tyBLhtBKVUdiaRXebs8F/exec'; // Replace with your Apps Script URL
-    let stream;
-    let usingFrontCamera = true;
-    let studentCode = '';
-    let selectedSheet = '';
-    let selectedRoll = '';
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('capture');
+    const uploadBtn = document.getElementById('upload');
+    const status = document.getElementById('status');
 
-    async function loadClasses() {
-      const res = await fetch(`${apiUrl}?action=getSheetNames`);
-      const data = await res.json();
-      const classSelect = document.getElementById('classSelect');
-      data.sheets.forEach(sheet => {
-        const opt = document.createElement('option');
-        opt.value = sheet;
-        opt.textContent = sheet;
-        classSelect.appendChild(opt);
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(err => alert('Camera access denied: ' + err));
+
+    captureBtn.onclick = () => {
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      uploadBtn.disabled = false;
+      status.textContent = 'Image captured. Ready to upload.';
+    };
+
+    uploadBtn.onclick = async () => {
+      const imageData = canvas.toDataURL('image/jpeg');
+      status.textContent = 'Uploading...';
+
+      const response = await fetch('https://script.google.com/macros/s/AKfycbxhvnbT195Op_uNmNnU2cAa9RcdztNHXd1DQxXQZFrGHhzKMs007w2gdRfm3qRdoy5W/exec', {
+        method: 'POST',
+        body: JSON.stringify({ image: imageData }),
+        headers: { 'Content-Type': 'application/json' }
       });
-    }
 
-    document.getElementById('classSelect').addEventListener('change', async function() {
-      selectedSheet = this.value;
-      studentCode = '';
-      selectedRoll = '';
-      document.getElementById('rollSelect').innerHTML = '<option value="">Select Roll No</option>';
-      document.getElementById('studentInfo').innerHTML = '';
-      document.getElementById('rollSelect').disabled = true;
-
-      if (!selectedSheet) return;
-
-      const res = await fetch(`${apiUrl}?action=getRollNos&sheet=${encodeURIComponent(selectedSheet)}`);
-      const data = await res.json();
-      const rollSelect = document.getElementById('rollSelect');
-      data.rolls.forEach(roll => {
-        const opt = document.createElement('option');
-        opt.value = roll;
-        opt.textContent = roll;
-        rollSelect.appendChild(opt);
-      });
-      rollSelect.disabled = false;
-    });
-
-    document.getElementById('rollSelect').addEventListener('change', async function() {
-      selectedRoll = this.value;
-      if (!selectedRoll || !selectedSheet) {
-        studentCode = '';
-        document.getElementById('studentInfo').innerHTML = '';
-        return;
-      }
-
-      const res = await fetch(`${apiUrl}?action=getStudentInfo&sheet=${encodeURIComponent(selectedSheet)}&roll=${encodeURIComponent(selectedRoll)}`);
-      const data = await res.json();
-      studentCode = data.code || '';
-      document.getElementById('studentInfo').innerHTML = `
-        Student Code (ID): <strong>${data.code || ''}</strong><br>
-        Name: <strong>${data.name || ''}</strong><br>
-        Contact: <strong>${data.contact || ''}</strong>
-      `;
-    });
-
-    async function initCamera() {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: usingFrontCamera ? 'user' : 'environment' } });
-        document.getElementById('video').srcObject = stream;
-      } catch (err) {
-        alert('Could not access camera: ' + err);
-      }
-    }
-
-    document.getElementById('swapBtn').onclick = () => {
-      usingFrontCamera = !usingFrontCamera;
-      initCamera();
+      const result = await response.text();
+      status.textContent = result;
     };
-
-    document.getElementById('captureBtn').onclick = () => {
-      if (!studentCode) {
-        alert('Please select student details first.');
-        return;
-      }
-      const video = document.getElementById('video');
-      const canvas = document.getElementById('canvas');
-      const ctx = canvas.getContext('2d');
-
-      // Maintain 5:6.5 ratio
-      const width = 500;
-      const height = Math.round(width * 6.5 / 5);
-
-      canvas.width = width;
-      canvas.height = height;
-
-      // Draw video frame on canvas
-      ctx.drawImage(video, 0, 0, width, height);
-
-      // Display the captured image
-      const img = document.getElementById('capturedImage');
-      img.src = canvas.toDataURL('image/jpeg', 1.0);  // full quality
-      img.style.display = 'block';
-    };
-
-    document.getElementById('saveBtn').onclick = async () => {
-      if (!studentCode) {
-        alert('Please select student details first.');
-        return;
-      }
-      const img = document.getElementById('capturedImage');
-      if (!img.src || !img.src.startsWith('data:image/jpeg')) {
-        alert('Please capture an image first.');
-        return;
-      }
-
-      try {
-        const res = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'saveImage',
-            studentCode,
-            imageData: img.src,
-            folderId: '1RlSZT08HlcklTX81OotSM6s42YuRGF-4',
-            sheet: selectedSheet,
-            roll: selectedRoll
-          }),
-        });
-        const data = await res.json();
-        alert(data.message || 'Image saved successfully.');
-      } catch (e) {
-        alert('Error saving image: ' + e.message);
-      }
-    };
-
-    // Initialize
-    loadClasses();
-    initCamera();
   </script>
 </body>
 </html>
