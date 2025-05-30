@@ -2,69 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Student Photo Uploader</title>
+  <title>Capture & Upload (5:6.5)</title>
   <style>
-    #preview-container {
-      width: 250px;
-      height: 325px; /* 250 * (6.5 / 5) */
-      border: 2px solid #ccc;
-      position: relative;
-      overflow: hidden;
-      background: #f0f0f0;
+    video, canvas {
+      display: block;
+      margin: 10px auto;
+      border: 1px solid #ccc;
     }
     #preview {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      max-width: 100%;
-      max-height: 100%;
+      width: 250px;
+      height: 325px; /* 5:6.5 */
+      object-fit: cover;
+      border: 2px solid #333;
     }
   </style>
 </head>
 <body>
-  <h2>Capture & Upload Photo</h2>
+  <h2>Capture Photo (5:6.5 Ratio)</h2>
 
-  <video id="camera" autoplay playsinline width="250" height="325" style="border:1px solid #333;"></video><br>
+  <video id="video" autoplay playsinline width="500" height="650"></video>
   <button onclick="capture()">Capture</button>
 
-  <div id="preview-container">
-    <img id="preview" />
-  </div><br>
-
+  <br>
+  <img id="preview" alt="Preview"><br>
   <button onclick="upload()">Upload to Drive</button>
 
   <script>
-    let video = document.getElementById('camera');
-    let canvas = document.createElement('canvas');
+    const video = document.getElementById('video');
+    const preview = document.getElementById('preview');
+    const canvas = document.createElement('canvas');
     let capturedImageData = null;
+
+    // Set desired output dimensions
+    const outputWidth = 500;
+    const outputHeight = 650;
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { video.srcObject = stream; })
-      .catch(err => alert("Camera access denied."));
+      .catch(err => alert("Camera access denied: " + err));
 
     function capture() {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      let ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0);
-      capturedImageData = canvas.toDataURL('image/jpeg');
-      document.getElementById('preview').src = capturedImageData;
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
+      const ctx = canvas.getContext('2d');
+
+      // Calculate cropping area (center-crop to 5:6.5 ratio)
+      const videoRatio = video.videoWidth / video.videoHeight;
+      const targetRatio = outputWidth / outputHeight;
+
+      let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight;
+
+      if (videoRatio > targetRatio) {
+        // Crop horizontally
+        sw = video.videoHeight * targetRatio;
+        sx = (video.videoWidth - sw) / 2;
+      } else {
+        // Crop vertically
+        sh = video.videoWidth / targetRatio;
+        sy = (video.videoHeight - sh) / 2;
+      }
+
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
+      capturedImageData = canvas.toDataURL('image/jpeg', 0.9);
+      preview.src = capturedImageData;
     }
 
     function upload() {
       if (!capturedImageData) return alert("Capture a photo first.");
-      fetch('https://script.google.com/macros/s/AKfycbxOoVNDwBbRTECpZ9JKtGyY2mePrG9JMoXv19i9mq89bvdGyJWhnMQmVxAUW5JVf6HO/exec', {
+
+      fetch('https://script.google.com/macros/s/AKfycbyR9CqUrAIKoOpBZ4hgUSwG4FZGNLNiqcog1fxb82HTuDhPpaiBqJoXH0zqCMKmpZQA/exec', {
         method: 'POST',
         body: JSON.stringify({
           imageData: capturedImageData,
-          filename: 'student_photo.jpg' // Optional: customize this dynamically
+          filename: `photo_${Date.now()}.jpg`
         }),
         headers: { 'Content-Type': 'application/json' }
       })
       .then(res => res.json())
       .then(data => alert(data.message))
-      .catch(err => alert("Upload failed."));
+      .catch(err => alert("Upload error: " + err));
     }
   </script>
 </body>
