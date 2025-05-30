@@ -1,120 +1,127 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Student Photo Uploader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: sans-serif; padding: 1em; max-width: 480px; margin: auto; }
-    label, select, input, button { display: block; margin: 10px 0; width: 100%; }
-    video, canvas, img { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
-    #errorMsg { color: red; font-weight: bold; }
+    body { font-family: Arial; padding: 20px; max-width: 600px; margin: auto; }
+    video, canvas, img { width: 100%; border-radius: 10px; margin-top: 10px; }
+    select, button { width: 100%; padding: 10px; margin-top: 10px; }
+    .info { margin-top: 10px; }
   </style>
 </head>
 <body>
   <h2>Student Photo Uploader</h2>
-  <label>Class & Section</label>
-  <select id="sheetName"></select>
 
-  <label>Roll No</label>
-  <input type="text" id="rollNo" placeholder="Enter roll number">
+  <select id="classSelect">
+    <option value="">Select Class & Section</option>
+  </select>
 
-  <div id="studentName"></div>
-  <div id="errorMsg"></div>
+  <select id="rollSelect">
+    <option value="">Select Roll No</option>
+  </select>
+
+  <div class="info" id="studentInfo"></div>
 
   <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" style="display: none;"></canvas>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <img id="capturedImage" style="display:none;" />
 
-  <button onclick="capturePhoto()">Capture Photo</button>
-  <img id="preview" style="display:none">
-
-  <button onclick="uploadPhoto()">Upload Photo</button>
+  <button onclick="swapCamera()">Swap Camera</button>
+  <button onclick="captureImage()">Capture Picture</button>
+  <button onclick="saveImage()">Save Image</button>
 
   <script>
-    const backendUrl = 'https://script.google.com/macros/s/AKfycbx8sKQ7twj18pONVYsVpsuuNdMmUXfr0CSxXWBPeOTGbxYFtAIuUC0V3qOv5YwH-cAS/exec';
+    const apiUrl = 'https://script.google.com/macros/s/AKfycbycVcUKYOkGxJFHthEd4uXog8H-7vbErQ9QZokJFqav9pu0d95zvk5gAC1SkvASIw/exec';
+    let studentCode = '';
+    let usingFrontCamera = true;
+    let stream;
 
-    async function fetchSheetNames() {
-      const res = await fetch(`${backendUrl}?action=getSheetNames`);
-      const names = await res.json();
-      const dropdown = document.getElementById('sheetName');
-      names.forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        dropdown.appendChild(option);
+    async function loadClasses() {
+      const res = await fetch(`${apiUrl}?action=getSheetNames`);
+      const { sheets } = await res.json();
+      const select = document.getElementById('classSelect');
+      sheets.forEach(sheet => {
+        const opt = document.createElement('option');
+        opt.value = sheet;
+        opt.textContent = sheet;
+        select.appendChild(opt);
       });
     }
 
-    document.getElementById('rollNo').addEventListener('blur', async () => {
-      const sheet = document.getElementById('sheetName').value;
-      const roll = document.getElementById('rollNo').value.trim();
-      const res = await fetch(`${backendUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheet)}`);
-      const data = await res.json();
-
-      const match = data.find(row => String(row[0]).trim().toLowerCase() === roll.toLowerCase());
-      const display = document.getElementById('studentName');
-      const error = document.getElementById('errorMsg');
-
-      if (match) {
-        display.textContent = `Student Name: ${match[1]} | Code: ${match[2]}`;
-        error.textContent = '';
-      } else {
-        display.textContent = '';
-        error.textContent = 'Roll No not found.';
-      }
+    document.getElementById('classSelect').addEventListener('change', async function () {
+      const sheet = this.value;
+      const res = await fetch(`${apiUrl}?action=getRollNos&sheet=${sheet}`);
+      const { rolls } = await res.json();
+      const select = document.getElementById('rollSelect');
+      select.innerHTML = `<option value="">Select Roll No</option>`;
+      rolls.forEach(roll => {
+        const opt = document.createElement('option');
+        opt.value = roll;
+        opt.textContent = roll;
+        select.appendChild(opt);
+      });
     });
 
-    let stream;
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
+    document.getElementById('rollSelect').addEventListener('change', async function () {
+      const roll = this.value;
+      const sheet = document.getElementById('classSelect').value;
+      const res = await fetch(`${apiUrl}?action=getStudentInfo&sheet=${sheet}&roll=${roll}`);
+      const { code, name, contact } = await res.json();
+      studentCode = code;
+      document.getElementById('studentInfo').innerHTML =
+        `<strong>ID:</strong> ${code}<br><strong>Name:</strong> ${name}<br><strong>Contact:</strong> ${contact}`;
+    });
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-      .then(s => { stream = s; video.srcObject = stream; });
+    async function initCamera(facingMode = 'user') {
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
+      document.getElementById('video').srcObject = stream;
+    }
 
-    function capturePhoto() {
+    function swapCamera() {
+      usingFrontCamera = !usingFrontCamera;
+      initCamera(usingFrontCamera ? 'user' : 'environment');
+    }
+
+    function captureImage() {
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
       const ctx = canvas.getContext('2d');
+
       const width = 500;
-      const height = Math.floor(width * 6.5 / 5);
+      const height = 650; // 5:6.5 ratio
       canvas.width = width;
       canvas.height = height;
       ctx.drawImage(video, 0, 0, width, height);
-      const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-      document.getElementById('preview').src = dataURL;
-      document.getElementById('preview').style.display = 'block';
+
+      const img = document.getElementById('capturedImage');
+      img.src = canvas.toDataURL('image/jpeg');
+      img.style.display = 'block';
     }
 
-    async function uploadPhoto() {
-      const sheet = document.getElementById('sheetName').value;
-      const roll = document.getElementById('rollNo').value.trim();
-      const imgData = canvas.toDataURL('image/jpeg').split(',')[1];
-      const fileName = roll + '.jpg';
+    async function saveImage() {
+      if (!studentCode) return alert('Please select student first');
+      const dataUrl = document.getElementById('capturedImage').src;
+      if (!dataUrl) return alert('Please capture an image first');
 
-      const uploadRes = await fetch(backendUrl, {
+      const res = await fetch(apiUrl, {
         method: 'POST',
         body: JSON.stringify({
-          action: 'uploadImageToDrive',
-          fileName: fileName,
-          imageData: imgData,
-          folderId: ''
-        })
+          action: 'saveImage',
+          studentCode,
+          imageData: dataUrl,
+          sheet: document.getElementById('classSelect').value,
+          roll: document.getElementById('rollSelect').value
+        }),
+        headers: { 'Content-Type': 'application/json' }
       });
-      const uploadData = await uploadRes.json();
-      if (uploadData.success) {
-        await fetch(backendUrl, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'saveImageLink',
-            sheetName: sheet,
-            rollNo: roll,
-            imageLink: uploadData.fileLink
-          })
-        });
-        alert('Image uploaded and linked!');
-      } else {
-        alert('Upload failed: ' + uploadData.error);
-      }
+      const json = await res.json();
+      alert(json.message || 'Image saved');
     }
 
-    fetchSheetNames();
+    loadClasses();
+    initCamera();
   </script>
 </body>
 </html>
