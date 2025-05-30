@@ -41,7 +41,7 @@
         }
 
         h1, h2 {
-            color: #d32f2f; /* Red color for headers */
+            color: #d32f2f;
             margin-top: 0;
             margin-bottom: 20px;
         }
@@ -58,22 +58,22 @@
         select, input[type="text"] {
             width: 100%;
             padding: 10px;
-            border: 1px solid #ffc107; /* Yellow border */
+            border: 1px solid #ffc107;
             border-radius: 5px;
             font-size: 1rem;
             box-sizing: border-box;
-            background-color: #fffde7; /* Light yellow background */
+            background-color: #fffde7;
         }
         
         .student-details div {
-            background-color: #fff8e1; /* Light yellow background */
-            border-left: 5px solid #ffc107; /* Yellow border */
+            background-color: #fff8e1;
+            border-left: 5px solid #ffc107;
             padding: 10px 15px;
             margin-bottom: 10px;
             border-radius: 5px;
         }
         .student-details strong {
-            color: #d32f2f; /* Red color */
+            color: #d32f2f;
         }
 
         .camera-container {
@@ -82,7 +82,7 @@
             background-color: #000;
             border-radius: 8px;
             overflow: hidden;
-            border: 2px solid #d32f2f; /* Red border */
+            border: 2px solid #d32f2f;
         }
         video, #capturedImage {
             display: block;
@@ -102,7 +102,7 @@
         .camera-controls button {
             flex-grow: 1;
             padding: 12px 20px;
-            background-color: #d32f2f; /* Red color */
+            background-color: #d32f2f;
             color: white;
             border: none;
             border-radius: 6px;
@@ -111,7 +111,7 @@
             transition: background-color 0.2s ease;
         }
         .camera-controls button:hover {
-            background-color: #b71c1c; /* Darker red */
+            background-color: #b71c1c;
         }
         .camera-controls button:disabled {
             background-color: #cccccc;
@@ -119,11 +119,11 @@
         }
         
         #retakePictureButton {
-            background-color: #ffc107; /* Yellow color */
+            background-color: #ffc107;
             color: #333;
         }
         #retakePictureButton:hover {
-            background-color: #ffab00; /* Darker yellow */
+            background-color: #ffab00;
         }
         
         .message {
@@ -146,7 +146,7 @@
         .loading-spinner {
             display: none;
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #d32f2f; /* Red color */
+            border-top: 4px solid #d32f2f;
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -193,6 +193,9 @@
             <div class="camera-container">
                 <video id="cameraFeed" autoplay playsinline></video>
                 <img id="capturedImage" alt="Captured Student Image" style="display:none;">
+                <div id="cameraError" class="camera-placeholder" style="display:none;">
+                    Camera not available or permissions denied
+                </div>
             </div>
             <canvas id="canvas" style="display:none;"></canvas>
 
@@ -210,7 +213,7 @@
         // Configuration
         const SPREADSHEET_ID = '1E42C6IIupDSFCFexL0ouQteFtwiFoM1QyLwSo2rZRH0';
         const DRIVE_FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
-        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbw3Ung6HHaGEZ600O3w-qWn3lbllT7OaKNR2fs7l9dB83qSQKlnd1qBO5tGCKO_St82/exec';
+        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbxaqGq_MtpFMB52ItzWiDOiFoj5fSHGP796qH1n6yh-AEfFLfGiaIW_esZ5xk2Wg78/exec';
 
         // DOM Elements
         const elements = {
@@ -222,6 +225,7 @@
             cameraFeed: document.getElementById('cameraFeed'),
             canvas: document.getElementById('canvas'),
             capturedImage: document.getElementById('capturedImage'),
+            cameraError: document.getElementById('cameraError'),
             swapCameraButton: document.getElementById('swapCameraButton'),
             capturePictureButton: document.getElementById('capturePictureButton'),
             savePictureButton: document.getElementById('savePictureButton'),
@@ -238,25 +242,23 @@
             capturedImageData: null
         };
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchSheetNames();
-            startCamera(state.facingMode);
-        });
-
-        // Event Listeners
-        elements.classSectionDropdown.addEventListener('change', (e) => {
-            fetchSheetData(e.target.value);
-        });
-
-        elements.rollNoDropdown.addEventListener('change', (e) => {
-            displayStudentDetails(e.target.value);
-        });
-
-        elements.swapCameraButton.addEventListener('click', swapCamera);
-        elements.capturePictureButton.addEventListener('click', capturePicture);
-        elements.savePictureButton.addEventListener('click', savePicture);
-        elements.retakePictureButton.addEventListener('click', retakePicture);
+        // Enhanced fetch with retry logic
+        async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                if (retries > 0) {
+                    console.log(`Retrying... (${retries} attempts left)`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+                }
+                throw error;
+            }
+        }
 
         // Utility Functions
         function showMessage(message, type = 'info') {
@@ -293,11 +295,7 @@
         async function fetchSheetNames() {
             showLoading(true);
             try {
-                const response = await fetch(`${APPS_SCRIPT_BASE_URL}?action=getSheetNames`);
-                if (!response.ok) throw new Error('Failed to fetch sheet names');
-                
-                const sheetNames = await response.json();
-                if (!Array.isArray(sheetNames)) throw new Error('Invalid data format');
+                const sheetNames = await fetchWithRetry(`${APPS_SCRIPT_BASE_URL}?action=getSheetNames`);
                 
                 elements.classSectionDropdown.innerHTML = '<option value="">Select Class & Section</option>';
                 sheetNames.forEach(name => {
@@ -306,10 +304,17 @@
                     option.textContent = name;
                     elements.classSectionDropdown.appendChild(option);
                 });
+                
                 elements.classSectionDropdown.disabled = false;
+                showMessage('Classes loaded successfully', 'success');
             } catch (error) {
-                console.error('Error:', error);
-                showMessage('Failed to load classes', 'error');
+                console.error('Error fetching sheet names:', error);
+                let errorMessage = 'Failed to load classes';
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network error. Please check your connection.';
+                }
+                showMessage(errorMessage, 'error');
+                elements.classSectionDropdown.innerHTML = '<option value="">Error Loading Classes</option>';
             } finally {
                 showLoading(false);
             }
@@ -324,30 +329,39 @@
 
             showLoading(true);
             try {
-                const response = await fetch(`${APPS_SCRIPT_BASE_URL}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`);
-                if (!response.ok) throw new Error('Failed to fetch sheet data');
-                
-                const data = await response.json();
-                if (!Array.isArray(data)) throw new Error('Invalid data format');
+                const data = await fetchWithRetry(
+                    `${APPS_SCRIPT_BASE_URL}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`
+                );
                 
                 // Skip header row if exists
                 const startRow = data.length > 0 && data[0][0] === 'Roll No' ? 1 : 0;
                 
                 for (let i = startRow; i < data.length; i++) {
-                    if (data[i][0]) { // Roll No in Column A
+                    const rollNo = data[i][0];
+                    if (rollNo) {
                         const option = document.createElement('option');
-                        option.value = data[i][0];
-                        option.textContent = data[i][0];
+                        option.value = rollNo;
+                        option.textContent = rollNo;
                         elements.rollNoDropdown.appendChild(option);
                     }
                 }
                 
                 if (elements.rollNoDropdown.options.length > 1) {
                     elements.rollNoDropdown.disabled = false;
+                    showMessage('Students loaded successfully', 'success');
+                } else {
+                    showMessage('No students found in this class', 'info');
                 }
             } catch (error) {
-                console.error('Error:', error);
-                showMessage('Failed to load students', 'error');
+                console.error('Error fetching sheet data:', error);
+                let errorMessage = 'Failed to load students';
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network error. Please check your connection.';
+                } else if (error.message.includes('Sheet not found')) {
+                    errorMessage = 'Class data not available. Please try another class.';
+                }
+                showMessage(errorMessage, 'error');
+                elements.rollNoDropdown.innerHTML = '<option value="">Error Loading Students</option>';
             } finally {
                 showLoading(false);
             }
@@ -360,11 +374,9 @@
 
             showLoading(true);
             try {
-                const response = await fetch(`${APPS_SCRIPT_BASE_URL}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`);
-                if (!response.ok) throw new Error('Failed to fetch student details');
-                
-                const data = await response.json();
-                if (!Array.isArray(data)) throw new Error('Invalid data format');
+                const data = await fetchWithRetry(
+                    `${APPS_SCRIPT_BASE_URL}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`
+                );
                 
                 // Find student by roll number (Column A)
                 const student = data.find(row => String(row[0]).trim() === String(rollNo).trim());
@@ -387,8 +399,12 @@
                     throw new Error('Student not found');
                 }
             } catch (error) {
-                console.error('Error:', error);
-                showMessage('Failed to load student details', 'error');
+                console.error('Error displaying student details:', error);
+                let errorMessage = 'Failed to load student details';
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network error. Please check your connection.';
+                }
+                showMessage(errorMessage, 'error');
             } finally {
                 showLoading(false);
             }
@@ -399,6 +415,10 @@
             if (state.currentStream) {
                 state.currentStream.getTracks().forEach(track => track.stop());
             }
+
+            elements.cameraError.style.display = 'none';
+            elements.cameraFeed.style.display = 'block';
+            elements.capturedImage.style.display = 'none';
 
             try {
                 const constraints = {
@@ -411,17 +431,17 @@
                 
                 state.currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 elements.cameraFeed.srcObject = state.currentStream;
-                elements.cameraFeed.style.display = 'block';
-                elements.capturedImage.style.display = 'none';
                 
                 elements.swapCameraButton.disabled = false;
                 elements.capturePictureButton.disabled = false;
                 state.facingMode = mode;
             } catch (error) {
                 console.error("Camera error:", error);
-                showMessage('Camera access denied or not available', 'error');
+                elements.cameraFeed.style.display = 'none';
+                elements.cameraError.style.display = 'block';
                 elements.capturePictureButton.disabled = true;
                 elements.swapCameraButton.disabled = true;
+                showMessage('Camera access denied or not available', 'error');
             }
         }
 
@@ -500,44 +520,79 @@
             showLoading(true);
             try {
                 // 1. Upload image to Drive (named with Student Code)
-                const uploadResponse = await fetch(`${APPS_SCRIPT_BASE_URL}?action=uploadImageToDrive`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        fileName: `${state.currentStudent.studentCode}.jpg`,
-                        imageData: state.capturedImageData.split(',')[1],
-                        folderId: DRIVE_FOLDER_ID
-                    })
-                });
-                
-                if (!uploadResponse.ok) throw new Error('Upload failed');
-                const uploadResult = await uploadResponse.json();
-                if (!uploadResult.success) throw new Error(uploadResult.error || 'Upload error');
-                
+                const uploadResult = await fetchWithRetry(
+                    `${APPS_SCRIPT_BASE_URL}?action=uploadImageToDrive`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fileName: `${state.currentStudent.studentCode}.jpg`,
+                            imageData: state.capturedImageData.split(',')[1],
+                            folderId: DRIVE_FOLDER_ID
+                        })
+                    }
+                );
+
+                if (!uploadResult.success) {
+                    throw new Error(uploadResult.error || 'Image upload failed');
+                }
+
                 // 2. Save link to Sheet (Column M)
-                const saveResponse = await fetch(`${APPS_SCRIPT_BASE_URL}?action=saveImageLink`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sheetName: state.currentStudent.sheetName,
-                        rollNo: state.currentStudent.rollNo,
-                        imageLink: uploadResult.fileLink
-                    })
-                });
-                
-                if (!saveResponse.ok) throw new Error('Save failed');
-                const saveResult = await saveResponse.json();
-                if (!saveResult.success) throw new Error(saveResult.error || 'Save error');
-                
+                const saveResult = await fetchWithRetry(
+                    `${APPS_SCRIPT_BASE_URL}?action=saveImageLink`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sheetName: state.currentStudent.sheetName,
+                            rollNo: state.currentStudent.rollNo,
+                            imageLink: uploadResult.fileLink
+                        })
+                    }
+                );
+
+                if (!saveResult.success) {
+                    throw new Error(saveResult.error || 'Failed to save link to sheet');
+                }
+
                 showMessage('Picture saved successfully!', 'success');
                 retakePicture();
             } catch (error) {
-                console.error('Error:', error);
-                showMessage(`Failed to save: ${error.message}`, 'error');
+                console.error('Save error:', error);
+                let errorMessage = error.message;
+                
+                // More user-friendly error messages
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network error. Please check your internet connection and try again.';
+                } else if (error.message.includes('Unexpected token')) {
+                    errorMessage = 'Server response error. Please try again later.';
+                }
+                
+                showMessage(`Failed to save: ${errorMessage}`, 'error');
             } finally {
                 showLoading(false);
             }
         }
+
+        // Event Listeners
+        elements.classSectionDropdown.addEventListener('change', (e) => {
+            fetchSheetData(e.target.value);
+        });
+
+        elements.rollNoDropdown.addEventListener('change', (e) => {
+            displayStudentDetails(e.target.value);
+        });
+
+        elements.swapCameraButton.addEventListener('click', swapCamera);
+        elements.capturePictureButton.addEventListener('click', capturePicture);
+        elements.savePictureButton.addEventListener('click', savePicture);
+        elements.retakePictureButton.addEventListener('click', retakePicture);
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchSheetNames();
+            startCamera(state.facingMode);
+        });
     </script>
 </body>
 </html>
