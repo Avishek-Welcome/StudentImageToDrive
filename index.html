@@ -1,256 +1,101 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Capture, Crop (5:6.5), and Prepare Image for Upload</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f4f4f4;
-            color: #333;
-            line-height: 1.6;
-        }
-        .container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            max-width: 700px;
-            margin: auto;
-        }
-        h2 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        p, li {
-            margin-bottom: 10px;
-        }
-        strong.highlight {
-            color: #d9534f; /* Red highlight for important limitations */
-        }
-        input[type="file"] {
-            display: block;
-            margin-top: 10px;
-            margin-bottom: 20px;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            width: calc(100% - 22px); /* Account for padding and border */
-        }
-        img {
-            max-width: 100%; /* Responsive images */
-            height: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
-        #previewContainer, #processedContainer {
-            margin-bottom: 20px;
-            padding: 15px;
-            border: 1px solid #eee;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-        }
-        #downloadLink {
-            display: inline-block;
-            padding: 12px 25px;
-            background-color: #5cb85c;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            font-size: 16px;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            text-align: center;
-            width: 100%;
-            box-sizing: border-box; /* Ensure padding doesn't affect width */
-        }
-        #downloadLink:hover {
-            background-color: #4cae4c;
-        }
-        .hidden {
-            display: none;
-        }
-        .note {
-            background-color: #fff3cd; /* Light yellow for notes */
-            border-left: 5px solid #ffeeba; /* Yellow border for emphasis */
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-        .note strong {
-            color: #856404; /* Darker yellow for text within note */
-        }
-        label {
-            font-weight: bold;
-            display: block;
-            margin-bottom: 5px;
-        }
-    </style>
+  <title>ছবি আপলোড</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #fffbe6;
+      color: #aa0000;
+      padding: 20px;
+      text-align: center;
+    }
+    button {
+      background-color: #ffcc00;
+      color: #aa0000;
+      padding: 15px 25px;
+      font-size: 18px;
+      border: none;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    video, canvas {
+      max-width: 100%;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
+  </style>
 </head>
 <body>
+  <h1>📸 মোবাইল ক্যামেরা দিয়ে ছবি তুলে আপলোড করো</h1>
+  <video id="video" autoplay playsinline width="100%"></video><br>
+  <button onclick="capture()">ছবি তোলো ও আপলোড করো</button>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <div id="message"></div>
 
-<div class="container">
-    <h2>Image Capture &amp; Processing Tool</h2>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script>
+    const CLIENT_ID = '74262272116-p9ptj5hc2mu89vr27ido643cgiko3lcc.apps.googleusercontent.com';
+    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+    const FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
 
-    <div class="note">
-        <p><strong class="highlight">VERY IMPORTANT: Regarding Google Drive Upload</strong></p>
-        <p>
-            This tool <strong class="highlight">CANNOT</strong> automatically upload the captured image to your Google Drive folder:
-            <code>https://drive.google.com/drive/u/0/folders/1RlSZT08HlcklTX81OotSM6s42YuRGF-4</code>.
-        </p>
-        <p>
-            Directly uploading files from a simple webpage like this to a specific user's Google Drive is a security risk and requires server-side programming with the Google Drive API and secure user authentication (OAuth 2.0).
-        </p>
-        <p>
-            <strong>What this tool does:</strong>
-        </p>
-        <ol>
-            <li>Lets you capture an image from your camera.</li>
-            <li>Crops it to a 5:6.5 aspect ratio.</li>
-            <li>Names it with the current date and time.</li>
-            <li>Provides a download link for the processed image.</li>
-        </ol>
-        <p>
-            You will then need to <strong class="highlight">MANUALLY UPLOAD the downloaded image</strong> to your Google Drive folder.
-        </p>
-    </div>
-
-    <label for="cameraInput">1. Capture Image from Camera:</label>
-    <input type="file" id="cameraInput" accept="image/*" capture="user">
-
-    <div id="previewContainer" class="hidden">
-        <h3>Original Captured Image:</h3>
-        <img id="previewImage" src="#" alt="Preview of captured image">
-    </div>
-
-    <div id="processedContainer" class="hidden">
-        <h3>Processed Image (5:6.5 Ratio):</h3>
-        <img id="processedImage" src="#" alt="Preview of processed image">
-        <canvas id="processingCanvas" class="hidden"></canvas> <a id="downloadLink" href="#" download="" class="hidden">Download Processed Image</a>
-    </div>
-</div>
-
-<script>
-    const cameraInput = document.getElementById('cameraInput');
-    const previewContainer = document.getElementById('previewContainer');
-    const previewImage = document.getElementById('previewImage');
-    const processedContainer = document.getElementById('processedContainer');
-    const processedImage = document.getElementById('processedImage');
-    const processingCanvas = document.getElementById('processingCanvas');
-    const downloadLink = document.getElementById('downloadLink');
-    const ctx = processingCanvas.getContext('2d');
-
-    const TARGET_ASPECT_RATIO = 5 / 6.5; // Target width / height
-
-    cameraInput.addEventListener('change', (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                previewImage.src = e.target.result;
-                previewContainer.classList.remove('hidden');
-                
-                // Reset/hide previous processed image and download link
-                processedContainer.classList.add('hidden');
-                downloadLink.classList.add('hidden');
-                processedImage.src = "#"; // Clear previous image
-
-                const img = new Image();
-                img.onload = () => {
-                    processAndDisplayImage(img);
-                }
-                img.onerror = () => {
-                    alert("Error: Could not load the captured image for processing.");
-                    previewContainer.classList.add('hidden'); // Hide preview if error
-                }
-                img.src = e.target.result;
-            }
-            reader.onerror = () => {
-                alert("Error: Could not read the image file.");
-            }
-            reader.readAsDataURL(file);
-        }
-    });
-
-    function processAndDisplayImage(img) {
-        const originalWidth = img.naturalWidth;
-        const originalHeight = img.naturalHeight;
-
-        if (originalWidth === 0 || originalHeight === 0) {
-            alert("Error: Image has zero dimensions. Cannot process.");
-            return;
-        }
-
-        const originalAspectRatio = originalWidth / originalHeight;
-
-        let sx = 0; // Source X for cropping
-        let sy = 0; // Source Y for cropping
-        let sWidth = originalWidth; // Source Width for cropping
-        let sHeight = originalHeight; // Source Height for cropping
-
-        // Calculate cropping dimensions to achieve TARGET_ASPECT_RATIO
-        // This crops from the center.
-        if (originalAspectRatio > TARGET_ASPECT_RATIO) {
-            // Image is wider than target aspect ratio, so crop width
-            sWidth = originalHeight * TARGET_ASPECT_RATIO;
-            sx = (originalWidth - sWidth) / 2;
-        } else if (originalAspectRatio < TARGET_ASPECT_RATIO) {
-            // Image is taller than target aspect ratio, so crop height
-            sHeight = originalWidth / TARGET_ASPECT_RATIO;
-            sy = (originalHeight - sHeight) / 2;
-        }
-        // If aspect ratios are already equal, sWidth/sHeight remain originalWidth/originalHeight, sx/sy remain 0
-
-        // Ensure calculated dimensions are positive
-        sWidth = Math.max(1, sWidth);
-        sHeight = Math.max(1, sHeight);
-
-        // Set canvas dimensions to the exact cropped size
-        processingCanvas.width = sWidth;
-        processingCanvas.height = sHeight;
-
-        // Draw the cropped portion of the image onto the canvas
-        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
-
-        // Generate filename (YYYY-MM-DD_HH-MM-SS.png)
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        const filename = `${year}-${month}-${day}_${hours}-${minutes}-${seconds}.png`;
-
-        try {
-            // Get data URL for the processed image (as PNG)
-            const processedImageDataUrl = processingCanvas.toDataURL('image/png');
-            
-            if (processedImageDataUrl === "data:,") { // Check for empty data URL
-                 alert("Error: Could not generate processed image data. Canvas might be blank.");
-                 return;
-            }
-
-            processedImage.src = processedImageDataUrl;
-            processedContainer.classList.remove('hidden');
-
-            downloadLink.href = processedImageDataUrl;
-            downloadLink.download = filename;
-            downloadLink.textContent = `Download Processed Image: ${filename}`;
-            downloadLink.classList.remove('hidden');
-
-        } catch (error) {
-            alert("Error generating image for download: " + error.message);
-            console.error("Error in toDataURL or setting download link:", error);
-        }
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          document.getElementById('video').srcObject = stream;
+        })
+        .catch(err => {
+          alert('ক্যামেরা চালু করা যায়নি: ' + err);
+        });
     }
-</script>
 
+    function capture() {
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(uploadToDrive, 'image/jpeg');
+    }
+
+    function uploadToDrive(blob) {
+      const now = new Date();
+      const fileName = now.toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19) + '.jpg';
+
+      gapi.load('client:auth2', () => {
+        gapi.auth2.init({ client_id: CLIENT_ID }).then(() => {
+          gapi.auth2.getAuthInstance().signIn().then(() => {
+            gapi.client.load('drive', 'v3', () => {
+              const fileMetadata = {
+                name: fileName,
+                parents: [FOLDER_ID]
+              };
+
+              const accessToken = gapi.auth.getToken().access_token;
+              const form = new FormData();
+              form.append('metadata', new Blob([JSON.stringify(fileMetadata)], { type: 'application/json' }));
+              form.append('file', blob);
+
+              fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST',
+                headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+                body: form
+              }).then(res => res.json())
+                .then(val => {
+                  document.getElementById('message').innerText = '✅ ছবি সফলভাবে আপলোড হয়েছে!';
+                })
+                .catch(err => {
+                  document.getElementById('message').innerText = '❌ আপলোডে সমস্যা হয়েছে: ' + err.message;
+                });
+            });
+          });
+        });
+      });
+    }
+
+    startCamera();
+  </script>
 </body>
 </html>
