@@ -4,10 +4,26 @@
   <title>Student Photo Uploader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: Arial; padding: 20px; max-width: 600px; margin: auto; }
-    video, canvas, img { width: 100%; border-radius: 10px; margin-top: 10px; }
-    select, button { width: 100%; padding: 10px; margin-top: 10px; }
-    .info { margin-top: 10px; }
+    body { 
+      font-family: Arial; 
+      padding: 20px; 
+      max-width: 600px; 
+      margin: auto; 
+      background-color: #fff3cd; /* light yellow background */ 
+    }
+    h2 { color: #d9534f; } /* red heading */
+    video, canvas, img { width: 100%; border-radius: 10px; margin-top: 10px; border: 2px solid #d9534f; }
+    select, button { 
+      width: 100%; padding: 10px; margin-top: 10px; 
+      border: 1px solid #d9534f; border-radius: 5px; 
+    }
+    button { background-color: #d9534f; color: white; font-weight: bold; }
+    .info { 
+      margin-top: 10px; 
+      background: #fce5cd; 
+      border-left: 5px solid #f0ad4e; 
+      padding: 10px; 
+    }
   </style>
 </head>
 <body>
@@ -32,10 +48,10 @@
   <button onclick="saveImage()">Save Image</button>
 
   <script>
-    const apiUrl = 'https://script.google.com/macros/s/AKfycbycVcUKYOkGxJFHthEd4uXog8H-7vbErQ9QZokJFqav9pu0d95zvk5gAC1SkvASIw/exec';
+    const apiUrl = 'https://script.google.com/macros/s/AKfycbx8i9qkzPrnxAk_DPwn-m2EMzOVOTNnYl2OkMO80aAuICX0bshPy2ItxrTOvIwPmxFN/exec';
     let studentCode = '';
-    let usingFrontCamera = true;
     let stream;
+    let usingFrontCamera = true;
 
     async function loadClasses() {
       const res = await fetch(`${apiUrl}?action=getSheetNames`);
@@ -50,8 +66,7 @@
     }
 
     document.getElementById('classSelect').addEventListener('change', async function () {
-      const sheet = this.value;
-      const res = await fetch(`${apiUrl}?action=getRollNos&sheet=${sheet}`);
+      const res = await fetch(`${apiUrl}?action=getRollNos&sheet=${this.value}`);
       const { rolls } = await res.json();
       const select = document.getElementById('rollSelect');
       select.innerHTML = `<option value="">Select Roll No</option>`;
@@ -64,13 +79,15 @@
     });
 
     document.getElementById('rollSelect').addEventListener('change', async function () {
-      const roll = this.value;
       const sheet = document.getElementById('classSelect').value;
+      const roll = this.value;
       const res = await fetch(`${apiUrl}?action=getStudentInfo&sheet=${sheet}&roll=${roll}`);
       const { code, name, contact } = await res.json();
       studentCode = code;
-      document.getElementById('studentInfo').innerHTML =
-        `<strong>ID:</strong> ${code}<br><strong>Name:</strong> ${name}<br><strong>Contact:</strong> ${contact}`;
+      document.getElementById('studentInfo').innerHTML = `
+        <strong>Student Code (ID):</strong> ${code}<br>
+        <strong>Name:</strong> ${name}<br>
+        <strong>Contact:</strong> ${contact}`;
     });
 
     async function initCamera(facingMode = 'user') {
@@ -90,7 +107,7 @@
       const ctx = canvas.getContext('2d');
 
       const width = 500;
-      const height = 650; // 5:6.5 ratio
+      const height = 650;
       canvas.width = width;
       canvas.height = height;
       ctx.drawImage(video, 0, 0, width, height);
@@ -101,9 +118,9 @@
     }
 
     async function saveImage() {
-      if (!studentCode) return alert('Please select student first');
+      if (!studentCode) return alert('Please select a student first.');
       const dataUrl = document.getElementById('capturedImage').src;
-      if (!dataUrl) return alert('Please capture an image first');
+      if (!dataUrl) return alert('Please capture an image first.');
 
       const res = await fetch(apiUrl, {
         method: 'POST',
