@@ -1,108 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Student Photo Uploader</title>
   <style>
-    body { font-family: sans-serif; padding: 1rem; }
-    label, select, input { display: block; margin: 1rem 0; }
-    #preview { width: 100px; aspect-ratio: 5 / 6.5; object-fit: cover; border: 1px solid #ccc; }
-    video { width: 100%; max-width: 300px; aspect-ratio: 5 / 6.5; }
-    button { padding: 0.5rem 1rem; margin-top: 1rem; }
+    body { font-family: sans-serif; padding: 1em; max-width: 480px; margin: auto; }
+    label, select, input, button { display: block; margin: 10px 0; width: 100%; }
+    video, canvas, img { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
+    #errorMsg { color: red; font-weight: bold; }
   </style>
 </head>
 <body>
+  <h2>Student Photo Uploader</h2>
+  <label>Class & Section</label>
+  <select id="sheetName"></select>
 
-<h2>Student Photo Capture</h2>
+  <label>Roll No</label>
+  <input type="text" id="rollNo" placeholder="Enter roll number">
 
-<label>Class & Section:
-  <select id="classSelect"></select>
-</label>
+  <div id="studentName"></div>
+  <div id="errorMsg"></div>
 
-<label>Roll No:
-  <input type="text" id="rollInput" placeholder="Enter Roll No">
-</label>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" style="display: none;"></canvas>
 
-<div>
-  <strong>Name:</strong> <span id="studentName">-</span><br>
-  <strong>Code:</strong> <span id="studentCode">-</span>
-</div>
+  <button onclick="capturePhoto()">Capture Photo</button>
+  <img id="preview" style="display:none">
 
-<video id="video" autoplay muted playsinline></video>
-<button onclick="capturePhoto()">Capture Photo</button>
-<canvas id="canvas" style="display:none;"></canvas>
-<img id="preview" src="">
+  <button onclick="uploadPhoto()">Upload Photo</button>
 
-<button onclick="uploadImage()">Upload</button>
+  <script>
+    const backendUrl = 'https://script.google.com/macros/s/AKfycbx8sKQ7twj18pONVYsVpsuuNdMmUXfr0CSxXWBPeOTGbxYFtAIuUC0V3qOv5YwH-cAS/exec';
 
-<script>
-const scriptURL = 'https://script.google.com/macros/s/AKfycby2ICxw_sHNRH4VxRic4mUnVTGG1nQhm0kxtWfosbOrkb8dXtQeexbgo4EXYMVS1THO/exec';
-let studentCode = '', selectedClass = '', rollNo = '', imageData = '';
+    async function fetchSheetNames() {
+      const res = await fetch(`${backendUrl}?action=getSheetNames`);
+      const names = await res.json();
+      const dropdown = document.getElementById('sheetName');
+      names.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        dropdown.appendChild(option);
+      });
+    }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const res = await fetch(`${scriptURL}?action=getSheetNames`);
-  const sheets = await res.json();
-  const select = document.getElementById('classSelect');
-  select.innerHTML = sheets.map(name => `<option value="${name}">${name}</option>`).join('');
-});
+    document.getElementById('rollNo').addEventListener('blur', async () => {
+      const sheet = document.getElementById('sheetName').value;
+      const roll = document.getElementById('rollNo').value.trim();
+      const res = await fetch(`${backendUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheet)}`);
+      const data = await res.json();
 
-document.getElementById('rollInput').addEventListener('change', async () => {
-  selectedClass = document.getElementById('classSelect').value;
-  rollNo = document.getElementById('rollInput').value.trim();
-  const res = await fetch(`${scriptURL}?action=getSheetData&sheetName=${encodeURIComponent(selectedClass)}&rollNo=${encodeURIComponent(rollNo)}`);
-  const data = await res.json();
-  document.getElementById('studentName').textContent = data.name || '-';
-  document.getElementById('studentCode').textContent = data.code || '-';
-  studentCode = data.code;
-});
+      const match = data.find(row => String(row[0]).trim().toLowerCase() === roll.toLowerCase());
+      const display = document.getElementById('studentName');
+      const error = document.getElementById('errorMsg');
 
-navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-  .then(stream => document.getElementById('video').srcObject = stream);
+      if (match) {
+        display.textContent = `Student Name: ${match[1]} | Code: ${match[2]}`;
+        error.textContent = '';
+      } else {
+        display.textContent = '';
+        error.textContent = 'Roll No not found.';
+      }
+    });
 
-function capturePhoto() {
-  const canvas = document.getElementById('canvas');
-  const video = document.getElementById('video');
-  const ctx = canvas.getContext('2d');
-  
-  canvas.width = 500;
-  canvas.height = 650;
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    let stream;
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
 
-  imageData = canvas.toDataURL('image/jpeg').split(',')[1];
-  document.getElementById('preview').src = canvas.toDataURL('image/jpeg');
-}
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+      .then(s => { stream = s; video.srcObject = stream; });
 
-async function uploadImage() {
-  if (!imageData || !studentCode) return alert("Please capture photo first.");
-  
-  const uploadRes = await fetch(scriptURL, {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'uploadImageToDrive',
-      fileName: `${studentCode}.jpg`,
-      imageData: imageData,
-      folderId: '1RlSZT08HlcklTX81OotSM6s42YuRGF-4'
-    })
-  });
+    function capturePhoto() {
+      const ctx = canvas.getContext('2d');
+      const width = 500;
+      const height = Math.floor(width * 6.5 / 5);
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(video, 0, 0, width, height);
+      const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+      document.getElementById('preview').src = dataURL;
+      document.getElementById('preview').style.display = 'block';
+    }
 
-  const uploadJson = await uploadRes.json();
-  if (!uploadJson.success) return alert("Upload failed: " + uploadJson.error);
+    async function uploadPhoto() {
+      const sheet = document.getElementById('sheetName').value;
+      const roll = document.getElementById('rollNo').value.trim();
+      const imgData = canvas.toDataURL('image/jpeg').split(',')[1];
+      const fileName = roll + '.jpg';
 
-  const saveRes = await fetch(scriptURL, {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'saveImageLink',
-      sheetName: selectedClass,
-      rollNo: rollNo,
-      imageLink: uploadJson.fileLink
-    })
-  });
+      const uploadRes = await fetch(backendUrl, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'uploadImageToDrive',
+          fileName: fileName,
+          imageData: imgData,
+          folderId: ''
+        })
+      });
+      const uploadData = await uploadRes.json();
+      if (uploadData.success) {
+        await fetch(backendUrl, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'saveImageLink',
+            sheetName: sheet,
+            rollNo: roll,
+            imageLink: uploadData.fileLink
+          })
+        });
+        alert('Image uploaded and linked!');
+      } else {
+        alert('Upload failed: ' + uploadData.error);
+      }
+    }
 
-  const saveJson = await saveRes.json();
-  alert(saveJson.success ? "Image uploaded & saved!" : "Failed to save link");
-}
-</script>
-
+    fetchSheetNames();
+  </script>
 </body>
 </html>
