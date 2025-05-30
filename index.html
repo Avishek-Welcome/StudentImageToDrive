@@ -2,14 +2,14 @@
 <html>
 <head>
   <title>Student Photo Uploader</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #fff8dc;
-      color: #b30000;
       max-width: 600px;
       margin: auto;
+      background: #fff8dc;
+      color: #b30000;
       padding: 20px;
     }
     h2 {
@@ -22,23 +22,26 @@
       border: 2px solid #b30000;
       border-radius: 5px;
       font-size: 16px;
-    }
-    button {
-      background-color: #b30000;
-      color: #fff;
+      background: #fff3cd;
+      color: #b30000;
       font-weight: bold;
     }
-    video, canvas, img {
+    video, img {
       width: 100%;
       margin-top: 10px;
       border-radius: 8px;
       border: 2px solid #b30000;
+      object-fit: cover;
+      aspect-ratio: 5 / 6.5;
+      background: black;
     }
     .info {
       background-color: #fff3cd;
       padding: 10px;
       border-left: 5px solid #ffcc00;
       margin-top: 10px;
+      color: #b30000;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -47,107 +50,155 @@
   <select id="classSelect">
     <option value="">Select Class & Section</option>
   </select>
-  <select id="rollSelect">
+
+  <select id="rollSelect" disabled>
     <option value="">Select Roll No</option>
   </select>
+
   <div class="info" id="studentInfo"></div>
+
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas" style="display:none;"></canvas>
   <img id="capturedImage" style="display:none;" />
-  <button onclick="swapCamera()">Swap Camera</button>
-  <button onclick="captureImage()">Capture Picture</button>
-  <button onclick="saveImage()">Save Image</button>
+
+  <button id="swapBtn">Swap Camera</button>
+  <button id="captureBtn">Capture Picture</button>
+  <button id="saveBtn">Save Image</button>
 
   <script>
-    const apiUrl = 'https://script.google.com/macros/s/AKfycbzyRtNgmEtLkymN2ERSkatfZ7_GKZVVSVJtQO8vzQKbzlT3gtuOOYxp6DgbNz8XMFHS/exec';
-    let studentCode = '';
+    const apiUrl = 'https://script.google.com/macros/s/AKfycbxrclcQpyqboq05RCTXCiH1oJ6_4D9bQRdKFtFpPB7gTfX8tyBLhtBKVUdiaRXebs8F/exec'; // Replace with your Apps Script URL
     let stream;
     let usingFrontCamera = true;
+    let studentCode = '';
+    let selectedSheet = '';
+    let selectedRoll = '';
 
     async function loadClasses() {
       const res = await fetch(`${apiUrl}?action=getSheetNames`);
-      const { sheets } = await res.json();
-      const select = document.getElementById('classSelect');
-      sheets.forEach(sheet => {
+      const data = await res.json();
+      const classSelect = document.getElementById('classSelect');
+      data.sheets.forEach(sheet => {
         const opt = document.createElement('option');
         opt.value = sheet;
         opt.textContent = sheet;
-        select.appendChild(opt);
+        classSelect.appendChild(opt);
       });
     }
 
-    document.getElementById('classSelect').addEventListener('change', async function () {
-      const res = await fetch(`${apiUrl}?action=getRollNos&sheet=${this.value}`);
-      const { rolls } = await res.json();
-      const select = document.getElementById('rollSelect');
-      select.innerHTML = `<option value="">Select Roll No</option>`;
-      rolls.forEach(roll => {
+    document.getElementById('classSelect').addEventListener('change', async function() {
+      selectedSheet = this.value;
+      studentCode = '';
+      selectedRoll = '';
+      document.getElementById('rollSelect').innerHTML = '<option value="">Select Roll No</option>';
+      document.getElementById('studentInfo').innerHTML = '';
+      document.getElementById('rollSelect').disabled = true;
+
+      if (!selectedSheet) return;
+
+      const res = await fetch(`${apiUrl}?action=getRollNos&sheet=${encodeURIComponent(selectedSheet)}`);
+      const data = await res.json();
+      const rollSelect = document.getElementById('rollSelect');
+      data.rolls.forEach(roll => {
         const opt = document.createElement('option');
         opt.value = roll;
         opt.textContent = roll;
-        select.appendChild(opt);
+        rollSelect.appendChild(opt);
       });
+      rollSelect.disabled = false;
     });
 
-    document.getElementById('rollSelect').addEventListener('change', async function () {
-      const sheet = document.getElementById('classSelect').value;
-      const roll = this.value;
-      const res = await fetch(`${apiUrl}?action=getStudentInfo&sheet=${sheet}&roll=${roll}`);
-      const { code, name, contact } = await res.json();
-      studentCode = code;
+    document.getElementById('rollSelect').addEventListener('change', async function() {
+      selectedRoll = this.value;
+      if (!selectedRoll || !selectedSheet) {
+        studentCode = '';
+        document.getElementById('studentInfo').innerHTML = '';
+        return;
+      }
+
+      const res = await fetch(`${apiUrl}?action=getStudentInfo&sheet=${encodeURIComponent(selectedSheet)}&roll=${encodeURIComponent(selectedRoll)}`);
+      const data = await res.json();
+      studentCode = data.code || '';
       document.getElementById('studentInfo').innerHTML = `
-        <strong>Student Code (ID):</strong> ${code}<br>
-        <strong>Name:</strong> ${name}<br>
-        <strong>Contact:</strong> ${contact}`;
+        Student Code (ID): <strong>${data.code || ''}</strong><br>
+        Name: <strong>${data.name || ''}</strong><br>
+        Contact: <strong>${data.contact || ''}</strong>
+      `;
     });
 
-    async function initCamera(facingMode = 'user') {
-      if (stream) stream.getTracks().forEach(track => track.stop());
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
-      document.getElementById('video').srcObject = stream;
+    async function initCamera() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: usingFrontCamera ? 'user' : 'environment' } });
+        document.getElementById('video').srcObject = stream;
+      } catch (err) {
+        alert('Could not access camera: ' + err);
+      }
     }
 
-    function swapCamera() {
+    document.getElementById('swapBtn').onclick = () => {
       usingFrontCamera = !usingFrontCamera;
-      initCamera(usingFrontCamera ? 'user' : 'environment');
-    }
+      initCamera();
+    };
 
-    function captureImage() {
+    document.getElementById('captureBtn').onclick = () => {
+      if (!studentCode) {
+        alert('Please select student details first.');
+        return;
+      }
       const video = document.getElementById('video');
       const canvas = document.getElementById('canvas');
       const ctx = canvas.getContext('2d');
+
+      // Maintain 5:6.5 ratio
       const width = 500;
-      const height = 650;
+      const height = Math.round(width * 6.5 / 5);
+
       canvas.width = width;
       canvas.height = height;
+
+      // Draw video frame on canvas
       ctx.drawImage(video, 0, 0, width, height);
+
+      // Display the captured image
       const img = document.getElementById('capturedImage');
-      img.src = canvas.toDataURL('image/jpeg');
+      img.src = canvas.toDataURL('image/jpeg', 1.0);  // full quality
       img.style.display = 'block';
-    }
+    };
 
-    async function saveImage() {
-      if (!studentCode) return alert('Please select a student first.');
-      const dataUrl = document.getElementById('capturedImage').src;
-      if (!dataUrl.startsWith('data:image/jpeg')) return alert('Please capture an image first.');
+    document.getElementById('saveBtn').onclick = async () => {
+      if (!studentCode) {
+        alert('Please select student details first.');
+        return;
+      }
+      const img = document.getElementById('capturedImage');
+      if (!img.src || !img.src.startsWith('data:image/jpeg')) {
+        alert('Please capture an image first.');
+        return;
+      }
 
-      const formData = new FormData();
-      formData.append('action', 'saveImage');
-      formData.append('studentCode', studentCode);
-      formData.append('sheet', document.getElementById('classSelect').value);
-      formData.append('roll', document.getElementById('rollSelect').value);
-      formData.append('imageData', dataUrl);
-      formData.append('folderId', '1RlSZT08HlcklTX81OotSM6s42YuRGF-4');
+      try {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'saveImage',
+            studentCode,
+            imageData: img.src,
+            folderId: '1RlSZT08HlcklTX81OotSM6s42YuRGF-4',
+            sheet: selectedSheet,
+            roll: selectedRoll
+          }),
+        });
+        const data = await res.json();
+        alert(data.message || 'Image saved successfully.');
+      } catch (e) {
+        alert('Error saving image: ' + e.message);
+      }
+    };
 
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        body: formData
-      });
-
-      const json = await res.json();
-      alert(json.message || 'Image saved');
-    }
-
+    // Initialize
     loadClasses();
     initCamera();
   </script>
