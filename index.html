@@ -131,17 +131,17 @@
       const dataUrl = document.getElementById('capturedImage').src;
       if (!dataUrl.startsWith('data:image/jpeg')) return alert('Please capture an image first.');
 
+      const formData = new FormData();
+      formData.append('action', 'saveImage');
+      formData.append('studentCode', studentCode);
+      formData.append('sheet', document.getElementById('classSelect').value);
+      formData.append('roll', document.getElementById('rollSelect').value);
+      formData.append('imageData', dataUrl);
+      formData.append('folderId', '1RlSZT08HlcklTX81OotSM6s42YuRGF-4');
+
       const res = await fetch(apiUrl, {
         method: 'POST',
-        body: JSON.stringify({
-          action: 'saveImage',
-          studentCode,
-          imageData: dataUrl,
-          folderId: '1RlSZT08HlcklTX81OotSM6s42YuRGF-4',
-          sheet: document.getElementById('classSelect').value,
-          roll: document.getElementById('rollSelect').value
-        }),
-        headers: { 'Content-Type': 'application/json' }
+        body: formData
       });
 
       const json = await res.json();
