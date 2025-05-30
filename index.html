@@ -193,9 +193,6 @@
             <div class="camera-container">
                 <video id="cameraFeed" autoplay playsinline></video>
                 <img id="capturedImage" alt="Captured Student Image" style="display:none;">
-                <div id="cameraError" class="camera-placeholder" style="display:none;">
-                    Camera not available or permissions denied
-                </div>
             </div>
             <canvas id="canvas" style="display:none;"></canvas>
 
@@ -213,7 +210,7 @@
         // Configuration
         const SPREADSHEET_ID = '1E42C6IIupDSFCFexL0ouQteFtwiFoM1QyLwSo2rZRH0';
         const DRIVE_FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
-        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbxaqGq_MtpFMB52ItzWiDOiFoj5fSHGP796qH1n6yh-AEfFLfGiaIW_esZ5xk2Wg78/exec';
+        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbyHqKviTM_G8dkqvDjp_uyP148mCzJe-c7jqSKKqFt14C5MCx822M8PL0rGIRP6gxfs/exec';
 
         // DOM Elements
         const elements = {
@@ -225,7 +222,6 @@
             cameraFeed: document.getElementById('cameraFeed'),
             canvas: document.getElementById('canvas'),
             capturedImage: document.getElementById('capturedImage'),
-            cameraError: document.getElementById('cameraError'),
             swapCameraButton: document.getElementById('swapCameraButton'),
             capturePictureButton: document.getElementById('capturePictureButton'),
             savePictureButton: document.getElementById('savePictureButton'),
@@ -252,7 +248,6 @@
                 return await response.json();
             } catch (error) {
                 if (retries > 0) {
-                    console.log(`Retrying... (${retries} attempts left)`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                     return fetchWithRetry(url, options, retries - 1, delay * 1.5);
                 }
@@ -295,9 +290,25 @@
         async function fetchSheetNames() {
             showLoading(true);
             try {
+                // First test the connection
+                const testResponse = await fetch(`${APPS_SCRIPT_BASE_URL}?action=testConnection`);
+                if (!testResponse.ok) {
+                    throw new Error('Cannot connect to server');
+                }
+
+                // Then fetch sheet names
                 const sheetNames = await fetchWithRetry(`${APPS_SCRIPT_BASE_URL}?action=getSheetNames`);
                 
-                elements.classSectionDropdown.innerHTML = '<option value="">Select Class & Section</option>';
+                if (!Array.isArray(sheetNames)) {
+                    throw new Error('Invalid data format received');
+                }
+
+                elements.classSectionDropdown.innerHTML = '';
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select Class & Section';
+                elements.classSectionDropdown.appendChild(defaultOption);
+
                 sheetNames.forEach(name => {
                     const option = document.createElement('option');
                     option.value = name;
@@ -309,12 +320,9 @@
                 showMessage('Classes loaded successfully', 'success');
             } catch (error) {
                 console.error('Error fetching sheet names:', error);
-                let errorMessage = 'Failed to load classes';
-                if (error.message.includes('Failed to fetch')) {
-                    errorMessage = 'Network error. Please check your connection.';
-                }
-                showMessage(errorMessage, 'error');
+                showMessage('Failed to load classes. Please refresh the page or check your connection.', 'error');
                 elements.classSectionDropdown.innerHTML = '<option value="">Error Loading Classes</option>';
+                elements.classSectionDropdown.disabled = false;
             } finally {
                 showLoading(false);
             }
@@ -360,6 +368,7 @@
                 } else if (error.message.includes('Sheet not found')) {
                     errorMessage = 'Class data not available. Please try another class.';
                 }
+                
                 showMessage(errorMessage, 'error');
                 elements.rollNoDropdown.innerHTML = '<option value="">Error Loading Students</option>';
             } finally {
@@ -416,10 +425,6 @@
                 state.currentStream.getTracks().forEach(track => track.stop());
             }
 
-            elements.cameraError.style.display = 'none';
-            elements.cameraFeed.style.display = 'block';
-            elements.capturedImage.style.display = 'none';
-
             try {
                 const constraints = {
                     video: {
@@ -437,11 +442,9 @@
                 state.facingMode = mode;
             } catch (error) {
                 console.error("Camera error:", error);
-                elements.cameraFeed.style.display = 'none';
-                elements.cameraError.style.display = 'block';
+                showMessage('Camera access denied or not available', 'error');
                 elements.capturePictureButton.disabled = true;
                 elements.swapCameraButton.disabled = true;
-                showMessage('Camera access denied or not available', 'error');
             }
         }
 
