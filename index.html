@@ -1,101 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>ছবি আপলোড</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <title>Student Photo Uploader</title>
   <style>
-    body {
-      font-family: sans-serif;
-      background: #fffbe6;
-      color: #aa0000;
-      padding: 20px;
-      text-align: center;
+    #preview-container {
+      width: 250px;
+      height: 325px; /* 250 * (6.5 / 5) */
+      border: 2px solid #ccc;
+      position: relative;
+      overflow: hidden;
+      background: #f0f0f0;
     }
-    button {
-      background-color: #ffcc00;
-      color: #aa0000;
-      padding: 15px 25px;
-      font-size: 18px;
-      border: none;
-      border-radius: 10px;
-      margin-top: 20px;
-    }
-    video, canvas {
+    #preview {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       max-width: 100%;
-      margin-top: 10px;
-      border-radius: 10px;
+      max-height: 100%;
     }
   </style>
 </head>
 <body>
-  <h1>📸 মোবাইল ক্যামেরা দিয়ে ছবি তুলে আপলোড করো</h1>
-  <video id="video" autoplay playsinline width="100%"></video><br>
-  <button onclick="capture()">ছবি তোলো ও আপলোড করো</button>
-  <canvas id="canvas" style="display:none;"></canvas>
-  <div id="message"></div>
+  <h2>Capture & Upload Photo</h2>
 
-  <script src="https://apis.google.com/js/api.js"></script>
+  <video id="camera" autoplay playsinline width="250" height="325" style="border:1px solid #333;"></video><br>
+  <button onclick="capture()">Capture</button>
+
+  <div id="preview-container">
+    <img id="preview" />
+  </div><br>
+
+  <button onclick="upload()">Upload to Drive</button>
+
   <script>
-    const CLIENT_ID = '74262272116-p9ptj5hc2mu89vr27ido643cgiko3lcc.apps.googleusercontent.com';
-    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-    const FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
+    let video = document.getElementById('camera');
+    let canvas = document.createElement('canvas');
+    let capturedImageData = null;
 
-    function startCamera() {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          document.getElementById('video').srcObject = stream;
-        })
-        .catch(err => {
-          alert('ক্যামেরা চালু করা যায়নি: ' + err);
-        });
-    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => alert("Camera access denied."));
 
     function capture() {
-      const video = document.getElementById('video');
-      const canvas = document.getElementById('canvas');
-      const context = canvas.getContext('2d');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(uploadToDrive, 'image/jpeg');
+      let ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+      capturedImageData = canvas.toDataURL('image/jpeg');
+      document.getElementById('preview').src = capturedImageData;
     }
 
-    function uploadToDrive(blob) {
-      const now = new Date();
-      const fileName = now.toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19) + '.jpg';
-
-      gapi.load('client:auth2', () => {
-        gapi.auth2.init({ client_id: CLIENT_ID }).then(() => {
-          gapi.auth2.getAuthInstance().signIn().then(() => {
-            gapi.client.load('drive', 'v3', () => {
-              const fileMetadata = {
-                name: fileName,
-                parents: [FOLDER_ID]
-              };
-
-              const accessToken = gapi.auth.getToken().access_token;
-              const form = new FormData();
-              form.append('metadata', new Blob([JSON.stringify(fileMetadata)], { type: 'application/json' }));
-              form.append('file', blob);
-
-              fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-                method: 'POST',
-                headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
-                body: form
-              }).then(res => res.json())
-                .then(val => {
-                  document.getElementById('message').innerText = '✅ ছবি সফলভাবে আপলোড হয়েছে!';
-                })
-                .catch(err => {
-                  document.getElementById('message').innerText = '❌ আপলোডে সমস্যা হয়েছে: ' + err.message;
-                });
-            });
-          });
-        });
-      });
+    function upload() {
+      if (!capturedImageData) return alert("Capture a photo first.");
+      fetch('https://script.google.com/macros/s/AKfycbxOoVNDwBbRTECpZ9JKtGyY2mePrG9JMoXv19i9mq89bvdGyJWhnMQmVxAUW5JVf6HO/exec', {
+        method: 'POST',
+        body: JSON.stringify({
+          imageData: capturedImageData,
+          filename: 'student_photo.jpg' // Optional: customize this dynamically
+        }),
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(res => res.json())
+      .then(data => alert(data.message))
+      .catch(err => alert("Upload failed."));
     }
-
-    startCamera();
   </script>
 </body>
 </html>
