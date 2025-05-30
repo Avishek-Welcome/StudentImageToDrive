@@ -2,30 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Capture & Upload (5:6.5)</title>
+  <title>5:6.5 Photo Upload</title>
   <style>
-    video, canvas {
-      display: block;
-      margin: 10px auto;
-      border: 1px solid #ccc;
-    }
-    #preview {
-      width: 250px;
-      height: 325px; /* 5:6.5 */
-      object-fit: cover;
-      border: 2px solid #333;
-    }
+    video, canvas, img { display: block; margin: 10px auto; }
+    #preview { width: 250px; height: 325px; border: 2px solid #333; object-fit: cover; }
   </style>
 </head>
 <body>
-  <h2>Capture Photo (5:6.5 Ratio)</h2>
+  <h3>Capture & Upload Image (5:6.5 Ratio)</h3>
 
   <video id="video" autoplay playsinline width="500" height="650"></video>
   <button onclick="capture()">Capture</button>
-
-  <br>
   <img id="preview" alt="Preview"><br>
-  <button onclick="upload()">Upload to Drive</button>
+  <button onclick="upload()">Upload</button>
 
   <script>
     const video = document.getElementById('video');
@@ -33,32 +22,30 @@
     const canvas = document.createElement('canvas');
     let capturedImageData = null;
 
-    // Set desired output dimensions
     const outputWidth = 500;
     const outputHeight = 650;
 
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbwpukCl7OyJfBTx5hLd15kUKjz_px-R-NpRkzp0y8j9jbBmimo9yGZcYBsxG88KmpQp/exec'; // <-- Replace with your Apps Script URL
+
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(stream => { video.srcObject = stream; })
-      .catch(err => alert("Camera access denied: " + err));
+      .catch(err => alert("Camera not accessible: " + err));
 
     function capture() {
       canvas.width = outputWidth;
       canvas.height = outputHeight;
       const ctx = canvas.getContext('2d');
 
-      // Calculate cropping area (center-crop to 5:6.5 ratio)
-      const videoRatio = video.videoWidth / video.videoHeight;
+      // Center crop to 5:6.5
+      const vRatio = video.videoWidth / video.videoHeight;
       const targetRatio = outputWidth / outputHeight;
 
       let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight;
-
-      if (videoRatio > targetRatio) {
-        // Crop horizontally
-        sw = video.videoHeight * targetRatio;
+      if (vRatio > targetRatio) {
+        sw = sh * targetRatio;
         sx = (video.videoWidth - sw) / 2;
       } else {
-        // Crop vertically
-        sh = video.videoWidth / targetRatio;
+        sh = sw / targetRatio;
         sy = (video.videoHeight - sh) / 2;
       }
 
@@ -68,19 +55,19 @@
     }
 
     function upload() {
-      if (!capturedImageData) return alert("Capture a photo first.");
+      if (!capturedImageData) return alert("Please capture a photo first.");
 
-      fetch('https://script.google.com/macros/s/AKfycbyR9CqUrAIKoOpBZ4hgUSwG4FZGNLNiqcog1fxb82HTuDhPpaiBqJoXH0zqCMKmpZQA/exec', {
+      fetch(scriptURL, {
         method: 'POST',
+        mode: 'no-cors', // Required for Apps Script
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageData: capturedImageData,
           filename: `photo_${Date.now()}.jpg`
-        }),
-        headers: { 'Content-Type': 'application/json' }
+        })
       })
-      .then(res => res.json())
-      .then(data => alert(data.message))
-      .catch(err => alert("Upload error: " + err));
+      .then(() => alert("Upload sent! (Apps Script will handle it silently)"))
+      .catch(error => alert("Upload error: " + error));
     }
   </script>
 </body>
