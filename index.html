@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Data and Image Capture</title>
+    <title>Student Photo Capture System</title>
     <style>
-        /* Improved CSS with better error states */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #f4f7f6;
+            background-color: #f8f9fa;
             color: #333;
             display: flex;
             justify-content: center;
@@ -41,7 +40,12 @@
             }
         }
 
-        /* Improved form controls */
+        h1, h2 {
+            color: #d32f2f; /* Red color for headers */
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        
         .form-group {
             margin-bottom: 20px;
         }
@@ -54,24 +58,31 @@
         select, input[type="text"] {
             width: 100%;
             padding: 10px;
-            border: 1px solid #ccc;
+            border: 1px solid #ffc107; /* Yellow border */
             border-radius: 5px;
             font-size: 1rem;
             box-sizing: border-box;
-            background-color: #fcfcfc;
-        }
-        select.error, input[type="text"].error {
-            border-color: #dc3545;
-            background-color: #fff5f5;
+            background-color: #fffde7; /* Light yellow background */
         }
         
-        /* Improved camera controls */
+        .student-details div {
+            background-color: #fff8e1; /* Light yellow background */
+            border-left: 5px solid #ffc107; /* Yellow border */
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .student-details strong {
+            color: #d32f2f; /* Red color */
+        }
+
         .camera-container {
             position: relative;
             width: 100%;
             background-color: #000;
             border-radius: 8px;
             overflow: hidden;
+            border: 2px solid #d32f2f; /* Red border */
         }
         video, #capturedImage {
             display: block;
@@ -80,18 +91,78 @@
             max-height: 400px;
             object-fit: contain;
         }
-        .camera-placeholder {
+        
+        .camera-controls {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .camera-controls button {
+            flex-grow: 1;
+            padding: 12px 20px;
+            background-color: #d32f2f; /* Red color */
             color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s ease;
+        }
+        .camera-controls button:hover {
+            background-color: #b71c1c; /* Darker red */
+        }
+        .camera-controls button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        #retakePictureButton {
+            background-color: #ffc107; /* Yellow color */
+            color: #333;
+        }
+        #retakePictureButton:hover {
+            background-color: #ffab00; /* Darker yellow */
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
             text-align: center;
-            padding: 40px;
-            background-color: #222;
+        }
+        .message.success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        .message.error {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        
+        .loading-spinner {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #d32f2f; /* Red color */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="left-panel">
-            <h1>Student Information and Photo Capture</h1>
+            <h1>Student Photo Capture System</h1>
 
             <div class="form-group">
                 <label for="classSectionDropdown">Class & Section:</label>
@@ -109,7 +180,7 @@
 
             <div class="student-details">
                 <h2>Student Details:</h2>
-                <div><strong>Student ID:</strong> <span id="studentId">N/A</span></div>
+                <div><strong>Student Code:</strong> <span id="studentCode">N/A</span></div>
                 <div><strong>Student Name:</strong> <span id="studentName">N/A</span></div>
                 <div><strong>Contact Number:</strong> <span id="contactNumber">N/A</span></div>
             </div>
@@ -122,9 +193,6 @@
             <div class="camera-container">
                 <video id="cameraFeed" autoplay playsinline></video>
                 <img id="capturedImage" alt="Captured Student Image" style="display:none;">
-                <div id="cameraError" class="camera-placeholder" style="display:none;">
-                    Camera not available or permissions denied
-                </div>
             </div>
             <canvas id="canvas" style="display:none;"></canvas>
 
@@ -139,30 +207,21 @@
     </div>
 
     <script>
-        // Configuration - Replace with your actual IDs
+        // Configuration
         const SPREADSHEET_ID = '1E42C6IIupDSFCFexL0ouQteFtwiFoM1QyLwSo2rZRH0';
-        const GOOGLE_DRIVE_FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
-        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbz3p28erNnfPBnbF15rb272q2iN0XLYjwOP1hsMd5c7Co1BczENKn6IXOCpuigGflks/exec';
-
-        // API Endpoints
-        const API_ENDPOINTS = {
-            getSheetNames: `${APPS_SCRIPT_BASE_URL}?action=getSheetNames`,
-            getSheetData: `${APPS_SCRIPT_BASE_URL}?action=getSheetData`,
-            saveImageLink: `${APPS_SCRIPT_BASE_URL}?action=saveImageLink`,
-            uploadImageToDrive: `${APPS_SCRIPT_BASE_URL}?action=uploadImageToDrive`
-        };
+        const DRIVE_FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
+        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbw3Ung6HHaGEZ600O3w-qWn3lbllT7OaKNR2fs7l9dB83qSQKlnd1qBO5tGCKO_St82/exec';
 
         // DOM Elements
         const elements = {
             classSectionDropdown: document.getElementById('classSectionDropdown'),
             rollNoDropdown: document.getElementById('rollNoDropdown'),
-            studentId: document.getElementById('studentId'),
+            studentCode: document.getElementById('studentCode'),
             studentName: document.getElementById('studentName'),
             contactNumber: document.getElementById('contactNumber'),
             cameraFeed: document.getElementById('cameraFeed'),
             canvas: document.getElementById('canvas'),
             capturedImage: document.getElementById('capturedImage'),
-            cameraError: document.getElementById('cameraError'),
             swapCameraButton: document.getElementById('swapCameraButton'),
             capturePictureButton: document.getElementById('capturePictureButton'),
             savePictureButton: document.getElementById('savePictureButton'),
@@ -179,12 +238,31 @@
             capturedImageData: null
         };
 
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchSheetNames();
+            startCamera(state.facingMode);
+        });
+
+        // Event Listeners
+        elements.classSectionDropdown.addEventListener('change', (e) => {
+            fetchSheetData(e.target.value);
+        });
+
+        elements.rollNoDropdown.addEventListener('change', (e) => {
+            displayStudentDetails(e.target.value);
+        });
+
+        elements.swapCameraButton.addEventListener('click', swapCamera);
+        elements.capturePictureButton.addEventListener('click', capturePicture);
+        elements.savePictureButton.addEventListener('click', savePicture);
+        elements.retakePictureButton.addEventListener('click', retakePicture);
+
         // Utility Functions
         function showMessage(message, type = 'info') {
             elements.statusMessage.textContent = message;
             elements.statusMessage.className = `message ${type}`;
             elements.statusMessage.style.display = 'block';
-            
             setTimeout(() => {
                 elements.statusMessage.style.display = 'none';
             }, 5000);
@@ -200,14 +278,11 @@
                 elements.savePictureButton,
                 elements.retakePictureButton
             ];
-            
-            buttons.forEach(btn => {
-                btn.disabled = show;
-            });
+            buttons.forEach(btn => btn.disabled = show);
         }
 
         function resetStudentDetails() {
-            elements.studentId.textContent = 'N/A';
+            elements.studentCode.textContent = 'N/A';
             elements.studentName.textContent = 'N/A';
             elements.contactNumber.textContent = 'N/A';
             state.currentStudent = null;
@@ -218,18 +293,12 @@
         async function fetchSheetNames() {
             showLoading(true);
             try {
-                const response = await fetch(API_ENDPOINTS.getSheetNames);
-                
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}`);
-                }
+                const response = await fetch(`${APPS_SCRIPT_BASE_URL}?action=getSheetNames`);
+                if (!response.ok) throw new Error('Failed to fetch sheet names');
                 
                 const sheetNames = await response.json();
+                if (!Array.isArray(sheetNames)) throw new Error('Invalid data format');
                 
-                if (!Array.isArray(sheetNames)) {
-                    throw new Error('Invalid data format received');
-                }
-
                 elements.classSectionDropdown.innerHTML = '<option value="">Select Class & Section</option>';
                 sheetNames.forEach(name => {
                     const option = document.createElement('option');
@@ -237,13 +306,10 @@
                     option.textContent = name;
                     elements.classSectionDropdown.appendChild(option);
                 });
-                
                 elements.classSectionDropdown.disabled = false;
-                showMessage('Classes loaded successfully', 'success');
             } catch (error) {
-                console.error('Error fetching sheet names:', error);
-                showMessage('Failed to load classes. Please try again.', 'error');
-                elements.classSectionDropdown.innerHTML = '<option value="">Error Loading Classes</option>';
+                console.error('Error:', error);
+                showMessage('Failed to load classes', 'error');
             } finally {
                 showLoading(false);
             }
@@ -258,42 +324,30 @@
 
             showLoading(true);
             try {
-                const url = `${API_ENDPOINTS.getSheetData}&sheetName=${encodeURIComponent(sheetName)}`;
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}`);
-                }
+                const response = await fetch(`${APPS_SCRIPT_BASE_URL}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`);
+                if (!response.ok) throw new Error('Failed to fetch sheet data');
                 
                 const data = await response.json();
+                if (!Array.isArray(data)) throw new Error('Invalid data format');
                 
-                if (!Array.isArray(data)) {
-                    throw new Error('Invalid data format received');
-                }
-
                 // Skip header row if exists
                 const startRow = data.length > 0 && data[0][0] === 'Roll No' ? 1 : 0;
                 
                 for (let i = startRow; i < data.length; i++) {
-                    const rollNo = data[i][0];
-                    if (rollNo) {
+                    if (data[i][0]) { // Roll No in Column A
                         const option = document.createElement('option');
-                        option.value = rollNo;
-                        option.textContent = rollNo;
+                        option.value = data[i][0];
+                        option.textContent = data[i][0];
                         elements.rollNoDropdown.appendChild(option);
                     }
                 }
                 
                 if (elements.rollNoDropdown.options.length > 1) {
                     elements.rollNoDropdown.disabled = false;
-                    showMessage('Students loaded successfully', 'success');
-                } else {
-                    showMessage('No students found in this class', 'info');
                 }
             } catch (error) {
-                console.error('Error fetching sheet data:', error);
-                showMessage('Failed to load students. Please try again.', 'error');
-                elements.rollNoDropdown.innerHTML = '<option value="">Error Loading Students</option>';
+                console.error('Error:', error);
+                showMessage('Failed to load students', 'error');
             } finally {
                 showLoading(false);
             }
@@ -301,51 +355,40 @@
 
         async function displayStudentDetails(rollNo) {
             resetStudentDetails();
-            
             const sheetName = elements.classSectionDropdown.value;
             if (!sheetName || !rollNo) return;
 
             showLoading(true);
             try {
-                const url = `${API_ENDPOINTS.getSheetData}&sheetName=${encodeURIComponent(sheetName)}`;
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}`);
-                }
+                const response = await fetch(`${APPS_SCRIPT_BASE_URL}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`);
+                if (!response.ok) throw new Error('Failed to fetch student details');
                 
                 const data = await response.json();
+                if (!Array.isArray(data)) throw new Error('Invalid data format');
                 
-                if (!Array.isArray(data)) {
-                    throw new Error('Invalid data format received');
-                }
-
-                // Find student by roll number
+                // Find student by roll number (Column A)
                 const student = data.find(row => String(row[0]).trim() === String(rollNo).trim());
                 
                 if (student) {
                     state.currentStudent = {
-                        id: student[0] || 'N/A',
-                        name: student[1] || 'N/A',
-                        contact: student[5] || 'N/A',
                         rollNo: rollNo,
+                        studentCode: student[8] || 'N/A', // Column I (Student Code)
+                        name: student[1] || 'N/A', // Column B (Name)
+                        contact: student[5] || 'N/A', // Column F (Contact)
                         sheetName: sheetName
                     };
                     
-                    elements.studentId.textContent = state.currentStudent.id;
+                    elements.studentCode.textContent = state.currentStudent.studentCode;
                     elements.studentName.textContent = state.currentStudent.name;
                     elements.contactNumber.textContent = state.currentStudent.contact;
                     
-                    // Enable save button if we have a captured image
                     elements.savePictureButton.disabled = !state.capturedImageData;
-                    showMessage('Student details loaded', 'success');
                 } else {
                     throw new Error('Student not found');
                 }
             } catch (error) {
-                console.error('Error displaying student details:', error);
-                showMessage('Failed to load student details. Please try again.', 'error');
-                resetStudentDetails();
+                console.error('Error:', error);
+                showMessage('Failed to load student details', 'error');
             } finally {
                 showLoading(false);
             }
@@ -353,14 +396,9 @@
 
         // Camera Functions
         async function startCamera(mode) {
-            // Clean up any existing stream
             if (state.currentStream) {
                 state.currentStream.getTracks().forEach(track => track.stop());
             }
-            
-            elements.cameraError.style.display = 'none';
-            elements.cameraFeed.style.display = 'block';
-            elements.capturedImage.style.display = 'none';
 
             try {
                 const constraints = {
@@ -373,20 +411,17 @@
                 
                 state.currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 elements.cameraFeed.srcObject = state.currentStream;
+                elements.cameraFeed.style.display = 'block';
+                elements.capturedImage.style.display = 'none';
                 
-                // Enable camera controls
                 elements.swapCameraButton.disabled = false;
                 elements.capturePictureButton.disabled = false;
-                
                 state.facingMode = mode;
-                showMessage('Camera started', 'success');
             } catch (error) {
                 console.error("Camera error:", error);
-                elements.cameraFeed.style.display = 'none';
-                elements.cameraError.style.display = 'block';
+                showMessage('Camera access denied or not available', 'error');
                 elements.capturePictureButton.disabled = true;
                 elements.swapCameraButton.disabled = true;
-                showMessage('Camera access denied or not available', 'error');
             }
         }
 
@@ -407,51 +442,44 @@
                 return;
             }
 
-            // Set canvas dimensions
+            // Set canvas dimensions for 5:6.5 ratio (500x650)
             const canvas = elements.canvas;
+            canvas.width = 500;
+            canvas.height = 650;
             const ctx = canvas.getContext('2d');
             
-            // Calculate dimensions for 5:6.5 ratio
-            const targetRatio = 5 / 6.5;
+            // Calculate cropping to maintain aspect ratio
+            const videoRatio = video.videoWidth / video.videoHeight;
+            const targetRatio = canvas.width / canvas.height;
+            
             let sourceX = 0, sourceY = 0;
             let sourceWidth = video.videoWidth;
             let sourceHeight = video.videoHeight;
             
-            const videoRatio = video.videoWidth / video.videoHeight;
-            
             if (videoRatio > targetRatio) {
-                // Video is wider than target - crop sides
                 sourceWidth = video.videoHeight * targetRatio;
                 sourceX = (video.videoWidth - sourceWidth) / 2;
             } else {
-                // Video is taller than target - crop top/bottom
                 sourceHeight = video.videoWidth / targetRatio;
                 sourceY = (video.videoHeight - sourceHeight) / 2;
             }
             
-            // Set canvas to final output size (500x650)
-            canvas.width = 500;
-            canvas.height = 650;
-            
-            // Draw cropped image to canvas
             ctx.drawImage(
                 video, 
                 sourceX, sourceY, sourceWidth, sourceHeight,
                 0, 0, canvas.width, canvas.height
             );
             
-            // Convert to JPEG and display
             state.capturedImageData = canvas.toDataURL('image/jpeg', 0.9);
             elements.capturedImage.src = state.capturedImageData;
             elements.capturedImage.style.display = 'block';
             elements.cameraFeed.style.display = 'none';
             
-            // Show retake button and enable save if student is selected
             elements.retakePictureButton.style.display = 'block';
             elements.capturePictureButton.style.display = 'none';
             elements.savePictureButton.disabled = !state.currentStudent;
             
-            showMessage('Picture captured', 'success');
+            showMessage('Picture captured!', 'success');
         }
 
         function retakePicture() {
@@ -471,29 +499,23 @@
 
             showLoading(true);
             try {
-                // 1. Upload image to Drive
-                const uploadResponse = await fetch(API_ENDPOINTS.uploadImageToDrive, {
+                // 1. Upload image to Drive (named with Student Code)
+                const uploadResponse = await fetch(`${APPS_SCRIPT_BASE_URL}?action=uploadImageToDrive`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        fileName: `${state.currentStudent.id}.jpg`,
+                        fileName: `${state.currentStudent.studentCode}.jpg`,
                         imageData: state.capturedImageData.split(',')[1],
-                        folderId: GOOGLE_DRIVE_FOLDER_ID
+                        folderId: DRIVE_FOLDER_ID
                     })
                 });
                 
-                if (!uploadResponse.ok) {
-                    throw new Error(`Upload failed: ${uploadResponse.status}`);
-                }
-                
+                if (!uploadResponse.ok) throw new Error('Upload failed');
                 const uploadResult = await uploadResponse.json();
+                if (!uploadResult.success) throw new Error(uploadResult.error || 'Upload error');
                 
-                if (!uploadResult.success) {
-                    throw new Error(uploadResult.error || 'Unknown upload error');
-                }
-
-                // 2. Save link to Sheet
-                const saveResponse = await fetch(API_ENDPOINTS.saveImageLink, {
+                // 2. Save link to Sheet (Column M)
+                const saveResponse = await fetch(`${APPS_SCRIPT_BASE_URL}?action=saveImageLink`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -503,45 +525,19 @@
                     })
                 });
                 
-                if (!saveResponse.ok) {
-                    throw new Error(`Save failed: ${saveResponse.status}`);
-                }
-                
+                if (!saveResponse.ok) throw new Error('Save failed');
                 const saveResult = await saveResponse.json();
+                if (!saveResult.success) throw new Error(saveResult.error || 'Save error');
                 
-                if (!saveResult.success) {
-                    throw new Error(saveResult.error || 'Unknown save error');
-                }
-
                 showMessage('Picture saved successfully!', 'success');
                 retakePicture();
             } catch (error) {
-                console.error('Save error:', error);
+                console.error('Error:', error);
                 showMessage(`Failed to save: ${error.message}`, 'error');
             } finally {
                 showLoading(false);
             }
         }
-
-        // Event Listeners
-        elements.classSectionDropdown.addEventListener('change', (e) => {
-            fetchSheetData(e.target.value);
-        });
-
-        elements.rollNoDropdown.addEventListener('change', (e) => {
-            displayStudentDetails(e.target.value);
-        });
-
-        elements.swapCameraButton.addEventListener('click', swapCamera);
-        elements.capturePictureButton.addEventListener('click', capturePicture);
-        elements.savePictureButton.addEventListener('click', savePicture);
-        elements.retakePictureButton.addEventListener('click', retakePicture);
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchSheetNames();
-            startCamera(state.facingMode);
-        });
     </script>
 </body>
 </html>
