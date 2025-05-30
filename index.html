@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Capture and Upload Image</title>
+  <title>Capture & Upload Image</title>
   <style>
     video, canvas {
       max-width: 100%;
@@ -15,10 +15,10 @@
   </style>
 </head>
 <body>
-  <h2>Capture Image and Upload to Google Drive</h2>
-  <video id="video" autoplay playsinline width="320" height="240"></video><br>
+  <h2>Capture and Upload to Google Drive</h2>
+  <video id="video" autoplay playsinline width="325" height="240"></video><br>
   <button id="capture">Capture</button>
-  <canvas id="canvas" width="320" height="240" style="display:none;"></canvas><br>
+  <canvas id="canvas" style="display:none;"></canvas><br>
   <button id="upload" disabled>Upload to Drive</button>
   <p id="status"></p>
 
@@ -29,22 +29,58 @@
     const uploadBtn = document.getElementById('upload');
     const status = document.getElementById('status');
 
-    navigator.mediaDevices.getUserMedia({ video: true })
+    // Start camera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => video.srcObject = stream)
-      .catch(err => alert('Camera access denied: ' + err));
+      .catch(err => alert("Error accessing camera: " + err));
+
+    // Maintain 5:6.5 ratio (e.g., 500x650 px)
+    function drawToCanvas() {
+      const aspectWidth = 500;
+      const aspectHeight = 650;
+      canvas.width = aspectWidth;
+      canvas.height = aspectHeight;
+
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = video.videoWidth;
+      tempCanvas.height = video.videoHeight;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Fit image inside canvas while maintaining aspect ratio
+      const videoRatio = tempCanvas.width / tempCanvas.height;
+      const targetRatio = aspectWidth / aspectHeight;
+      let drawWidth, drawHeight;
+
+      if (videoRatio > targetRatio) {
+        drawHeight = aspectHeight;
+        drawWidth = aspectHeight * videoRatio;
+      } else {
+        drawWidth = aspectWidth;
+        drawHeight = aspectWidth / videoRatio;
+      }
+
+      const dx = (aspectWidth - drawWidth) / 2;
+      const dy = (aspectHeight - drawHeight) / 2;
+
+      ctx.drawImage(tempCanvas, dx, dy, drawWidth, drawHeight);
+    }
 
     captureBtn.onclick = () => {
-      const context = canvas.getContext('2d');
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      drawToCanvas();
       uploadBtn.disabled = false;
-      status.textContent = 'Image captured. Ready to upload.';
+      status.textContent = "Image captured.";
     };
 
     uploadBtn.onclick = async () => {
       const imageData = canvas.toDataURL('image/jpeg');
-      status.textContent = 'Uploading...';
+      status.textContent = "Uploading...";
 
-      const response = await fetch('https://script.google.com/macros/s/AKfycbxhvnbT195Op_uNmNnU2cAa9RcdztNHXd1DQxXQZFrGHhzKMs007w2gdRfm3qRdoy5W/exec', {
+      const response = await fetch('https://script.google.com/macros/s/AKfycbwC07RCd64F4xNCw24B3inQxToL71cRXdiVpqq9E8ZLUdbu8z4ftbkmqUbL4fdJyKUF/exec', {
         method: 'POST',
         body: JSON.stringify({ image: imageData }),
         headers: { 'Content-Type': 'application/json' }
