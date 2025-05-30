@@ -1,171 +1,108 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Photo Capture System</title>
-    <style>
-        /* [Previous CSS styles remain exactly the same] */
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Student Photo Uploader</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    label, select, input { display: block; margin: 1rem 0; }
+    #preview { width: 100px; aspect-ratio: 5 / 6.5; object-fit: cover; border: 1px solid #ccc; }
+    video { width: 100%; max-width: 300px; aspect-ratio: 5 / 6.5; }
+    button { padding: 0.5rem 1rem; margin-top: 1rem; }
+  </style>
 </head>
 <body>
-    <!-- [Previous HTML structure remains exactly the same] -->
 
-    <script>
-        // Configuration
-        const SPREADSHEET_ID = '1E42C6IIupDSFCFexL0ouQteFtwiFoM1QyLwSo2rZRH0';
-        const DRIVE_FOLDER_ID = '1RlSZT08HlcklTX81OotSM6s42YuRGF-4';
-        const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycby_FeDxwIleo12gWiWPHAQSDEpMl0BzKEKlnwacXoCK-gOHY-apF2HCFgEAje5S6UA/exec';
+<h2>Student Photo Capture</h2>
 
-        // DOM Elements
-        const elements = {
-            classSectionDropdown: document.getElementById('classSectionDropdown'),
-            rollNoDropdown: document.getElementById('rollNoDropdown'),
-            studentCode: document.getElementById('studentCode'),
-            studentName: document.getElementById('studentName'),
-            contactNumber: document.getElementById('contactNumber'),
-            cameraFeed: document.getElementById('cameraFeed'),
-            canvas: document.getElementById('canvas'),
-            capturedImage: document.getElementById('capturedImage'),
-            swapCameraButton: document.getElementById('swapCameraButton'),
-            capturePictureButton: document.getElementById('capturePictureButton'),
-            savePictureButton: document.getElementById('savePictureButton'),
-            retakePictureButton: document.getElementById('retakePictureButton'),
-            statusMessage: document.getElementById('statusMessage'),
-            loadingSpinner: document.getElementById('loadingSpinner')
-        };
+<label>Class & Section:
+  <select id="classSelect"></select>
+</label>
 
-        // State management
-        const state = {
-            currentStream: null,
-            facingMode: 'user',
-            currentStudent: null,
-            capturedImageData: null
-        };
+<label>Roll No:
+  <input type="text" id="rollInput" placeholder="Enter Roll No">
+</label>
 
-        // Enhanced fetch with retry and timeout
-        async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-            
-            try {
-                const response = await fetch(url, {...options, signal: controller.signal});
-                clearTimeout(timeoutId);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return await response.json();
-            } catch (error) {
-                clearTimeout(timeoutId);
-                if (retries > 0) {
-                    console.log(`Retrying... (${retries} attempts left)`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return fetchWithRetry(url, options, retries - 1, delay * 2);
-                }
-                throw error;
-            }
-        }
+<div>
+  <strong>Name:</strong> <span id="studentName">-</span><br>
+  <strong>Code:</strong> <span id="studentCode">-</span>
+</div>
 
-        // Utility Functions
-        function showMessage(message, type = 'info') {
-            elements.statusMessage.textContent = message;
-            elements.statusMessage.className = `message ${type}`;
-            elements.statusMessage.style.display = 'block';
-            setTimeout(() => {
-                elements.statusMessage.style.display = 'none';
-            }, 5000);
-        }
+<video id="video" autoplay muted playsinline></video>
+<button onclick="capturePhoto()">Capture Photo</button>
+<canvas id="canvas" style="display:none;"></canvas>
+<img id="preview" src="">
 
-        function showLoading(show) {
-            elements.loadingSpinner.style.display = show ? 'block' : 'none';
-            const buttons = [
-                elements.classSectionDropdown,
-                elements.rollNoDropdown,
-                elements.swapCameraButton,
-                elements.capturePictureButton,
-                elements.savePictureButton,
-                elements.retakePictureButton
-            ];
-            buttons.forEach(btn => btn.disabled = show);
-        }
+<button onclick="uploadImage()">Upload</button>
 
-        function resetStudentDetails() {
-            elements.studentCode.textContent = 'N/A';
-            elements.studentName.textContent = 'N/A';
-            elements.contactNumber.textContent = 'N/A';
-            state.currentStudent = null;
-            elements.savePictureButton.disabled = true;
-        }
+<script>
+const scriptURL = 'https://script.google.com/macros/s/AKfycby2ICxw_sHNRH4VxRic4mUnVTGG1nQhm0kxtWfosbOrkb8dXtQeexbgo4EXYMVS1THO/exec';
+let studentCode = '', selectedClass = '', rollNo = '', imageData = '';
 
-        // Google Sheets Integration - Fixed Class Loading
-        async function fetchSheetNames() {
-            showLoading(true);
-            elements.classSectionDropdown.innerHTML = '<option value="">Loading classes...</option>';
-            elements.classSectionDropdown.disabled = true;
-            
-            try {
-                // First test the connection
-                const testResult = await fetchWithRetry(`${APPS_SCRIPT_BASE_URL}?action=testConnection`);
-                if (!testResult || !testResult.status === 'success') {
-                    throw new Error('Connection test failed');
-                }
+document.addEventListener('DOMContentLoaded', async () => {
+  const res = await fetch(`${scriptURL}?action=getSheetNames`);
+  const sheets = await res.json();
+  const select = document.getElementById('classSelect');
+  select.innerHTML = sheets.map(name => `<option value="${name}">${name}</option>`).join('');
+});
 
-                // Then fetch sheet names
-                const sheetNames = await fetchWithRetry(`${APPS_SCRIPT_BASE_URL}?action=getSheetNames`);
-                
-                if (!Array.isArray(sheetNames) || sheetNames.length === 0) {
-                    throw new Error('No classes found in spreadsheet');
-                }
+document.getElementById('rollInput').addEventListener('change', async () => {
+  selectedClass = document.getElementById('classSelect').value;
+  rollNo = document.getElementById('rollInput').value.trim();
+  const res = await fetch(`${scriptURL}?action=getSheetData&sheetName=${encodeURIComponent(selectedClass)}&rollNo=${encodeURIComponent(rollNo)}`);
+  const data = await res.json();
+  document.getElementById('studentName').textContent = data.name || '-';
+  document.getElementById('studentCode').textContent = data.code || '-';
+  studentCode = data.code;
+});
 
-                // Clear and rebuild dropdown
-                elements.classSectionDropdown.innerHTML = '';
-                const defaultOption = document.createElement('option');
-                defaultOption.value = '';
-                defaultOption.textContent = 'Select Class & Section';
-                elements.classSectionDropdown.appendChild(defaultOption);
+navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+  .then(stream => document.getElementById('video').srcObject = stream);
 
-                sheetNames.forEach(name => {
-                    // Only add non-empty sheet names
-                    if (name && name.trim() !== '') {
-                        const option = document.createElement('option');
-                        option.value = name;
-                        option.textContent = name;
-                        elements.classSectionDropdown.appendChild(option);
-                    }
-                });
-                
-                if (elements.classSectionDropdown.options.length > 1) {
-                    elements.classSectionDropdown.disabled = false;
-                    showMessage('Classes loaded successfully', 'success');
-                } else {
-                    throw new Error('No valid classes found');
-                }
-            } catch (error) {
-                console.error('Error loading classes:', error);
-                elements.classSectionDropdown.innerHTML = '<option value="">Error Loading Classes</option>';
-                elements.classSectionDropdown.disabled = false;
-                
-                let errorMessage = 'Failed to load classes';
-                if (error.message.includes('Failed to fetch')) {
-                    errorMessage = 'Network error. Please check your connection.';
-                } else if (error.message.includes('No classes found')) {
-                    errorMessage = 'No classes found in spreadsheet.';
-                }
-                
-                showMessage(errorMessage, 'error');
-            } finally {
-                showLoading(false);
-            }
-        }
+function capturePhoto() {
+  const canvas = document.getElementById('canvas');
+  const video = document.getElementById('video');
+  const ctx = canvas.getContext('2d');
+  
+  canvas.width = 500;
+  canvas.height = 650;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // [Rest of the functions remain the same as in previous complete version]
+  imageData = canvas.toDataURL('image/jpeg').split(',')[1];
+  document.getElementById('preview').src = canvas.toDataURL('image/jpeg');
+}
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchSheetNames();
-            startCamera(state.facingMode);
-        });
-    </script>
+async function uploadImage() {
+  if (!imageData || !studentCode) return alert("Please capture photo first.");
+  
+  const uploadRes = await fetch(scriptURL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'uploadImageToDrive',
+      fileName: `${studentCode}.jpg`,
+      imageData: imageData,
+      folderId: '1RlSZT08HlcklTX81OotSM6s42YuRGF-4'
+    })
+  });
+
+  const uploadJson = await uploadRes.json();
+  if (!uploadJson.success) return alert("Upload failed: " + uploadJson.error);
+
+  const saveRes = await fetch(scriptURL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'saveImageLink',
+      sheetName: selectedClass,
+      rollNo: rollNo,
+      imageLink: uploadJson.fileLink
+    })
+  });
+
+  const saveJson = await saveRes.json();
+  alert(saveJson.success ? "Image uploaded & saved!" : "Failed to save link");
+}
+</script>
+
 </body>
 </html>
